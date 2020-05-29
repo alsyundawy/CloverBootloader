@@ -9,15 +9,23 @@
 #ifndef Platform_h_h
 #define Platform_h_h
 
+#ifdef _MSC_VER
+#include <Windows.h>
+#endif
+
 #include <limits.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <string.h>
 #include <inttypes.h>
 #include <wchar.h>
-#include "../../../rEFIt_UEFI/cpp_foundation/unicode_conversions.h"
 #include "posix.h"
-#include "xcode_utf16.h"
+
+#include "../../../rEFIt_UEFI/Platform/Posix/abort.h"
+#include "../../../rEFIt_UEFI/cpp_foundation/unicode_conversions.h"
+#include "../../../rEFIt_UEFI/cpp_foundation/XString.h"
+
+#include "xcode_utf_fixed.h"
 
 
 #ifndef __cplusplus
@@ -30,9 +38,12 @@ typedef uint16_t char16_t;
 #define IN
 #define OUT
 
+#ifndef TRUE
 #define TRUE true
+#endif
+#ifndef FALSE
 #define FALSE false
-
+#endif
 #define VA_LIST va_list
 #define VA_START va_start
 #define VA_END va_end
@@ -56,8 +67,12 @@ typedef UINTN RETURN_STATUS;
 #define OPTIONAL
 #define ASSERT(x)
 
+#ifdef _MSC_VER
+#define __typeof__(x) decltype(x)
+#endif
+
 void CpuDeadLoop(void);
-void DebugLog(INTN DebugMode, const char *FormatString, ...);
+//void DebugLog(INTN DebugMode, const char *FormatString, ...);
 
 void PauseForKey(const wchar_t* msg);
 

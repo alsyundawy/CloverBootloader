@@ -127,11 +127,12 @@ func gPlistTag(from str: String) -> PlistTag {
  In 10.9/10.10 if mentioned programs aren't present the directory containing the desired file will be opened by the Finder.
  */
 func loadPlist(at path: String) {
-  if #available(OSX 10.11, *) {
+  if #available(OSX 10.10, *) {
     let dc = NSDocumentController.shared
     dc.openDocument(withContentsOf: URL(fileURLWithPath: path), display: true) {
       (document, documentWasAlreadyOpen, error) in
       if error != nil {
+        AppSD.setActivationPolicy()
         print(error!.localizedDescription)
         NSSound.beep()
       } else {
@@ -141,10 +142,6 @@ func loadPlist(at path: String) {
       }
     }
   } else {
-    // check if a document is opened some where
-    if NSDocumentController.shared.documents.count == 0 {
-      NSApp.setActivationPolicy(.accessory)
-    }
     // Use reccomended programs (hope) to avoid Text Edit
     var success = NSWorkspace.shared.openFile(path, withApplication: "PlistEdit Pro")
     if !success {
@@ -158,5 +155,6 @@ func loadPlist(at path: String) {
     if !success { // open the directory path
       success = NSWorkspace.shared.openFile(path.deletingLastPath)
     }
+    AppSD.setActivationPolicy()
   }
 }

@@ -202,7 +202,7 @@ final class SettingsViewController:
     
     self.progressBar.isHidden = true
     
-    self.runAtLoginButton.state = UDs.bool(forKey: kRunAtLogin) ? .on : .off
+    self.runAtLoginButton.state = AppSD.amILoginItem() ? .on : .off
     self.unmountButton.isEnabled = false
     self.autoMountButton.isEnabled = false
     self.autoMountButton.isHidden = true
@@ -218,7 +218,7 @@ final class SettingsViewController:
     self.oemBoardIdField.stringValue = getOEMBoard() ?? kNotAvailable.locale
     // tab 3
     self.plistsPopUp.removeAllItems()
-    if #available(OSX 10.11, *) {
+    if #available(OSX 10.10, *) {
       self.autoSaveButton.state = UDs.bool(forKey: kAutoSavePlistsKey) ? .on : .off
     } else {
       self.autoSaveButton.isEnabled = false
@@ -630,20 +630,12 @@ final class SettingsViewController:
   // MARK: Controls actions
   @IBAction func openThemeManager(_ sender: NSButton!) {
     DispatchQueue.main.async {
-      if #available(OSX 10.11, *) {
-        if (AppSD.themeManagerWC == nil) {
-          AppSD.themeManagerWC = ThemeManagerWC.loadFromNib()
-        }
-        
-        AppSD.themeManagerWC?.showWindow(self)
-      } else {
-        if (AppSD.themeManagerWC == nil) {
-          AppSD.themeManagerWC = ThemeManagerWC.loadFromNib()
-        }
-        
-        AppSD.themeManagerWC?.showWindow(self)
+      if (AppSD.themeManagerWC == nil) {
+        AppSD.themeManagerWC = ThemeManagerWC.loadFromNib()
       }
-      NSApp.activate(ignoringOtherApps: true)
+      AppSD.themeManagerWC?.showWindow(self)
+      AppSD.themeManagerWC?.window?.makeKeyAndOrderFront(nil)
+      AppSD.setActivationPolicy()
     }
   }
   
@@ -762,17 +754,14 @@ final class SettingsViewController:
       
       // make the app regular
       NSApp.setActivationPolicy(.regular)
-      
+      NSApp.activate(ignoringOtherApps: true)
       op.begin { (result) in
         if result == .OK {
           if let path = op.url?.path {
             loadPlist(at: path) // this will make the app regular again in 10.11+
           }
         } else {
-          // check if a document is opened some where
-          if NSDocumentController.shared.documents.count == 0 {
-            NSApp.setActivationPolicy(.accessory)
-          }
+          AppSD.setActivationPolicy()
         }
       }
     }
@@ -860,14 +849,17 @@ final class SettingsViewController:
         }
         
         AppSD.installerWC?.showWindow(self)
+        AppSD.installerWC?.window?.makeKeyAndOrderFront(nil)
+        AppSD.setActivationPolicy()
       } else {
         if (AppSD.installerOutWC == nil) {
           AppSD.installerOutWC = InstallerOutWindowController.loadFromNib()
         }
         
         AppSD.installerOutWC?.showWindow(self)
+        AppSD.installerOutWC?.window?.makeKeyAndOrderFront(nil)
+        AppSD.setActivationPolicy()
       }
-      //NSApp.activate(ignoringOtherApps: true)
     }
   }
   
@@ -961,13 +953,15 @@ final class SettingsViewController:
   // MARK: Run At Login
   @IBAction func runAtLogin(_ sender: NSButton!) {
     if sender.state == .on {
-      AppSD.setLaunchAtStartup()
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+        sender.state = AppSD.addAsLoginItem() ? .on : .off
+      }
     } else {
-      AppSD.removeLaunchAtStartup()
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+        //sender.state = AppSD.removeAsLoginItem() ? .on : .off
+        _ = AppSD.removeAsLoginItem()
+      }
     }
-    
-    // check the result
-    sender.state = UDs.bool(forKey: kRunAtLogin) ? .on : .off
   }
   
   // MARK: NVRAM editing
@@ -1334,6 +1328,13 @@ final class SettingsViewController:
     self.downloadTask?.resume()
   }
   
+  func cleanUpdateDirectory() {
+    let tempDir = "/tmp/CloverXXXXX\(NSUserName())Update"
+    if fm.fileExists(atPath: tempDir) {
+      try? fm.removeItem(atPath: tempDir)
+    }
+  }
+  
   func urlSession(_ session: URLSession,
                   downloadTask: URLSessionDownloadTask,
                   didFinishDownloadingTo location: URL) {
@@ -1385,6 +1386,8 @@ final class SettingsViewController:
             task.terminationHandler = { t in
               if t.terminationStatus == 0 {
                 self.replaceCloverV2(with: tempDir.addPath("CloverV2"))
+              } else {
+                self.cleanUpdateDirectory()
               }
             }
             
@@ -1408,6 +1411,7 @@ final class SettingsViewController:
     }
     if (error != nil) {
       print(error!.localizedDescription)
+      self.cleanUpdateDirectory()
     }
   }
   
@@ -1459,6 +1463,8 @@ final class SettingsViewController:
             try fm.removeItem(atPath: Cloverv2Path)
           }
           try fm.copyItem(atPath: newOne, toPath: Cloverv2Path)
+          self.cleanUpdateDirectory()
+          
           DispatchQueue.main.async {
             self.lastReleaseRev = nil
             self.lastReleaseLink = nil
@@ -1486,6 +1492,7 @@ final class SettingsViewController:
       }
       try fm.createDirectory(atPath: new, withIntermediateDirectories: false, attributes: nil)
       try fm.copyItem(atPath: path, toPath: new.addPath(path.lastPath))
+      self.cleanUpdateDirectory()
       DispatchQueue.main.async {
         self.lastReleaseRev = nil
         self.lastReleaseLink = nil

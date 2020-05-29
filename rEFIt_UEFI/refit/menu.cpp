@@ -70,9 +70,6 @@
 #define DBG(...) DebugLog(DEBUG_MENU, __VA_ARGS__)
 #endif
 
-
-REFIT_MENU_SCREEN OptionMenu(4, L"Options"_XSW, L""_XSW);
-
 extern CONST CHAR8      *AudioOutputNames[];
 
 INTN LayoutMainMenuHeight = 376;
@@ -117,11 +114,10 @@ REFIT_MENU_ITEM_RESET    MenuEntryReset   (L"Restart Computer"_XSW, 1, 0, 'R', A
 REFIT_MENU_ITEM_SHUTDOWN MenuEntryShutdown(L"Exit Clover"_XSW,      1, 0, 'U', ActionSelect);
 REFIT_MENU_ITEM_RETURN   MenuEntryReturn  (L"Return"_XSW,           0, 0,  0,  ActionEnter);
 
-
 REFIT_MENU_SCREEN MainMenu(1, L"Main Menu"_XSW, L"Automatic boot"_XSW);
 REFIT_MENU_SCREEN AboutMenu(2, L"About"_XSW, L""_XSW);
 REFIT_MENU_SCREEN HelpMenu(3, L"Help"_XSW, L""_XSW);
-
+REFIT_MENU_SCREEN OptionMenu(4, L"Options"_XSW, L""_XSW);
 
 
 VOID FillInputs(BOOLEAN New)
@@ -142,17 +138,18 @@ VOID FillInputs(BOOLEAN New)
   if (New) {
     InputItems[InputItemsCount].SValue = (__typeof__(InputItems[InputItemsCount].SValue))AllocateZeroPool(SVALUE_MAX_SIZE);
   }
-	snwprintf(InputItems[InputItemsCount++].SValue, SVALUE_MAX_SIZE, "%s ", gSettings.BootArgs);
+  // no need for extra space here, it is added by ApplyInputs()
+  snwprintf(InputItems[InputItemsCount++].SValue, SVALUE_MAX_SIZE, "%s", gSettings.BootArgs);
   InputItems[InputItemsCount].ItemType = UNIString; //1
   if (New) {
     InputItems[InputItemsCount].SValue = (__typeof__(InputItems[InputItemsCount].SValue))AllocateZeroPool(32);
   }
-	snwprintf(InputItems[InputItemsCount++].SValue, 32, "%ls", gSettings.DsdtName); // 1-> 2
+  snwprintf(InputItems[InputItemsCount++].SValue, 32, "%ls", gSettings.DsdtName); // 1-> 2
   InputItems[InputItemsCount].ItemType = UNIString; //2
   if (New) {
     InputItems[InputItemsCount].SValue = (__typeof__(InputItems[InputItemsCount].SValue))AllocateZeroPool(63);
   }
-	snwprintf(InputItems[InputItemsCount++].SValue, 63, "%ls", gSettings.BlockKexts);
+  snwprintf(InputItems[InputItemsCount++].SValue, 63, "%ls", gSettings.BlockKexts);
 
   InputItems[InputItemsCount].ItemType = RadioSwitch;  //3 - Themes chooser
   InputItems[InputItemsCount++].IValue = 3;
@@ -292,7 +289,7 @@ VOID FillInputs(BOOLEAN New)
   InputItems[InputItemsCount].ItemType = BoolValue; //44
   InputItems[InputItemsCount++].BValue = gSettings.KextPatchesAllowed;
   InputItems[InputItemsCount].ItemType = BoolValue; //45
-  InputItems[InputItemsCount++].BValue = gSettings.KernelAndKextPatches.KPKernelCpu;
+  InputItems[InputItemsCount++].BValue = gSettings.KernelAndKextPatches.EightApple;
   InputItems[InputItemsCount].ItemType = BoolValue; //46
   InputItems[InputItemsCount++].BValue = gSettings.KernelAndKextPatches.KPAppleIntelCPUPM;
   InputItems[InputItemsCount].ItemType = BoolValue; //47
@@ -384,7 +381,7 @@ VOID FillInputs(BOOLEAN New)
 
   InputItems[InputItemsCount].ItemType = Decimal;  //70
   if (New) {
-    InputItems[InputItemsCount].SValue = (__typeof__(InputItems[InputItemsCount].SValue))AllocateZeroPool(8);
+    InputItems[InputItemsCount].SValue = (__typeof__(InputItems[InputItemsCount].SValue))AllocateZeroPool(12);
   }
 	snwprintf(InputItems[InputItemsCount++].SValue, 8, "%02lld", gSettings.PointerSpeed);
   InputItems[InputItemsCount].ItemType = Decimal;  //71
@@ -519,8 +516,8 @@ VOID FillInputs(BOOLEAN New)
     InputItems[InputItemsCount].SValue = (__typeof__(InputItems[InputItemsCount].SValue))AllocateZeroPool(26);
   }
   snwprintf(InputItems[InputItemsCount++].SValue, 26, "0x%08X", gSettings.FakeXHCI);
-  InputItems[InputItemsCount].ItemType = CheckBit;  //101
-  InputItems[InputItemsCount++].IValue = dropDSM;
+  InputItems[InputItemsCount].ItemType = CheckBit;  //101 - vacant
+  InputItems[InputItemsCount++].IValue = 0; //dropDSM;
 
   InputItems[InputItemsCount].ItemType = BoolValue; //102
   InputItems[InputItemsCount++].BValue = gSettings.DebugDSDT;
@@ -801,7 +798,7 @@ VOID ApplyInputs(VOID)
   }
   i++; //45
   if (InputItems[i].Valid) {
-    gSettings.KernelAndKextPatches.KPKernelCpu = InputItems[i].BValue;
+    gSettings.KernelAndKextPatches.EightApple = InputItems[i].BValue;
     gBootChanged = TRUE;
   }
   i++; //46
@@ -1020,12 +1017,12 @@ VOID ApplyInputs(VOID)
   if (InputItems[i].Valid) {
     Status = LoadUserSettings(SelfRootDir, ConfigsList[OldChosenConfig], &dict);
     if (!EFI_ERROR(Status)) {
+      gBootChanged = TRUE;
+      gThemeChanged = TRUE;
       Status = GetUserSettings(SelfRootDir, dict);
       if (gConfigDict[2]) FreeTag(gConfigDict[2]);
       gConfigDict[2] = dict;
-		snwprintf(gSettings.ConfigName, 64, "%ls", ConfigsList[OldChosenConfig]);
-      gBootChanged = TRUE;
-      gThemeChanged = TRUE;
+      snwprintf(gSettings.ConfigName, 64, "%ls", ConfigsList[OldChosenConfig]);
     }
     FillInputs(FALSE);
     NeedSave = FALSE;
@@ -1073,11 +1070,11 @@ VOID ApplyInputs(VOID)
     gSettings.FakeXHCI = (UINT32)StrHexToUint64(InputItems[i].SValue);
   }
 
-  i++; //101
+  i++; //101  - vacant
   if (InputItems[i].Valid) {
 //    gSettings.DropOEM_DSM = (UINT16)StrHexToUint64(InputItems[i].SValue);
-    gSettings.DropOEM_DSM = (UINT16)InputItems[i].IValue;
-    dropDSM = gSettings.DropOEM_DSM; //?
+//    gSettings.DropOEM_DSM = (UINT16)InputItems[i].IValue;
+//    dropDSM = gSettings.DropOEM_DSM; //?
 //    defDSM = TRUE;
   }
   i++; //102
@@ -1209,15 +1206,15 @@ VOID ApplyInputs(VOID)
 
 VOID AboutRefit(VOID)
 {
-  if (!(ThemeX.HideUIFlags & HIDEUI_FLAG_MENU_TITLE_IMAGE)) {
-    AboutMenu.TitleImage = ThemeX.GetIcon((INTN)BUILTIN_ICON_FUNC_ABOUT);
-  } else {
-    AboutMenu.TitleImage.setEmpty();
-  }
-
   if (AboutMenu.Entries.size() == 0) {
+    if (!(ThemeX.HideUIFlags & HIDEUI_FLAG_MENU_TITLE_IMAGE)) {
+      AboutMenu.TitleImage = ThemeX.GetIcon(BUILTIN_ICON_FUNC_ABOUT);
+    }
+//    else {
+//      AboutMenu.TitleImage.setEmpty(); //done in the constructor
+//    }
 //    AboutMenu.AddMenuInfo_f(("Clover Version 5.0"));
-	AboutMenu.AddMenuInfo_f("%s", gRevisionStr);
+    AboutMenu.AddMenuInfo_f("%s", gRevisionStr);
     AboutMenu.AddMenuInfo_f(" Build: %s", gFirmwareBuildDate);
     AboutMenu.AddMenuInfo_f(" ");
     AboutMenu.AddMenuInfo_f("Based on rEFIt (c) 2006-2010 Christoph Pfisterer");
@@ -1263,12 +1260,13 @@ VOID AboutRefit(VOID)
 
 VOID HelpRefit(VOID)
 {
-  if (!(ThemeX.HideUIFlags & HIDEUI_FLAG_MENU_TITLE_IMAGE)) {
-    HelpMenu.TitleImage = ThemeX.GetIcon(BUILTIN_ICON_FUNC_HELP);
-  } else {
-    HelpMenu.TitleImage.setEmpty();
-  }
   if (HelpMenu.Entries.size() == 0) {
+    if (!(ThemeX.HideUIFlags & HIDEUI_FLAG_MENU_TITLE_IMAGE)) {
+      HelpMenu.TitleImage = ThemeX.GetIcon(BUILTIN_ICON_FUNC_HELP);
+    }
+    //else {
+    //  HelpMenu.TitleImage.setEmpty();
+    //}
     switch (gLanguage)
     {
       case russian:
@@ -1660,7 +1658,7 @@ VOID HelpRefit(VOID)
 
 REFIT_ABSTRACT_MENU_ENTRY* NewEntry_(REFIT_ABSTRACT_MENU_ENTRY *Entry, REFIT_MENU_SCREEN **SubScreen, ACTION AtClick, UINTN ID, CONST CHAR8 *CTitle)
 {
-    if ( CTitle ) Entry->Title.takeValueFrom(CTitle);
+    if (CTitle) Entry->Title.takeValueFrom(CTitle);
     else Entry->Title.setEmpty();
 
   Entry->Image =  OptionMenu.TitleImage;
@@ -1681,40 +1679,33 @@ REFIT_MENU_ITEM_OPTIONS* newREFIT_MENU_ITEM_OPTIONS(REFIT_MENU_SCREEN **SubScree
 {
 	REFIT_MENU_ITEM_OPTIONS* Entry = new REFIT_MENU_ITEM_OPTIONS();
 	return NewEntry_(Entry, SubScreen, AtClick, ID, Title)->getREFIT_MENU_ITEM_OPTIONS();
-//  (*Entry)->Tag = TAG_OPTIONS;
 }
 
 VOID ModifyTitles(REFIT_ABSTRACT_MENU_ENTRY *ChosenEntry)
 {
   if (ChosenEntry->SubScreen->ID == SCREEN_DSDT) {
-    ChosenEntry->Title.SWPrintf("DSDT fix mask [0x%08x]->", gSettings.FixDsdt); // TODO jief : cast to fix
+    ChosenEntry->Title.SWPrintf("DSDT fix mask [0x%08x]->", gSettings.FixDsdt);
     //MsgLog("@ESC: %ls\n", (*ChosenEntry)->Title);
   } else if (ChosenEntry->SubScreen->ID == SCREEN_CSR) {
     // CSR
-// TODO jief : cast to fix
-    ChosenEntry->Title.SWPrintf("System Integrity Protection [0x%04x]->", gSettings.CsrActiveConfig); // TODO jief : cast to fix
+    ChosenEntry->Title.SWPrintf("System Integrity Protection [0x%04x]->", gSettings.CsrActiveConfig);
     // check for the right booter flag to allow the application
     // of the new System Integrity Protection configuration.
     if (gSettings.CsrActiveConfig != 0 && gSettings.BooterConfig == 0) {
       gSettings.BooterConfig = 0x28;
     }
-
   } else if (ChosenEntry->SubScreen->ID == SCREEN_BLC) {
-	  ChosenEntry->Title.SWPrintf("boot_args->flags [0x%04hx]->", gSettings.BooterConfig); // TODO jief : cast to fix
-  } else if (ChosenEntry->SubScreen->ID == SCREEN_DSM) {
-	  ChosenEntry->Title.SWPrintf("Drop OEM _DSM [0x%04hx]->", dropDSM); // TODO jief : cast to fix
+	  ChosenEntry->Title.SWPrintf("boot_args->flags [0x%04hx]->", gSettings.BooterConfig);
   }
 }
 
 REFIT_ABSTRACT_MENU_ENTRY *SubMenuGraphics()
 {
-  UINTN  i, N, Ven = 97;
   REFIT_MENU_ITEM_OPTIONS   *Entry;
   REFIT_MENU_SCREEN  *SubScreen;
 
   Entry = newREFIT_MENU_ITEM_OPTIONS(&SubScreen, ActionEnter, SCREEN_GRAPHICS, "Graphics Injector->");
 	SubScreen->AddMenuInfoLine_f("Number of VideoCard%s=%llu",((NGFX!=1)?"s":""), NGFX);
-
   SubScreen->AddMenuItemInput(52, "InjectEDID", FALSE);
   SubScreen->AddMenuItemInput(53, "Fake Vendor EDID:", TRUE);
   SubScreen->AddMenuItemInput(54, "Fake Product EDID:", TRUE);
@@ -1722,10 +1713,10 @@ REFIT_ABSTRACT_MENU_ENTRY *SubMenuGraphics()
   SubScreen->AddMenuItemInput(112, "Intel Max Backlight:", TRUE); //gSettings.IntelMaxValue
 
 
-  for (i = 0; i < NGFX; i++) {
+  for (UINTN i = 0; i < NGFX; i++) {
     SubScreen->AddMenuInfo_f("----------------------");
 	  SubScreen->AddMenuInfo_f("Card DeviceID=%04hx", gGraphics[i].DeviceID);
-    N = 20 + i * 6;
+    UINTN N = 20 + i * 6;
     SubScreen->AddMenuItemInput(N, "Model:", TRUE);
 
     if (gGraphics[i].Vendor == Nvidia) {
@@ -1738,11 +1729,12 @@ REFIT_ABSTRACT_MENU_ENTRY *SubMenuGraphics()
       SubScreen->AddMenuItemInput(N+1, "InjectX3", FALSE);
     }
 
+    UINTN  Ven = 97; //it can be used for non Ati, Nvidia, Intel in QEMU for example
     if (gGraphics[i].Vendor == Nvidia) {
       Ven = 95;
     } else if (gGraphics[i].Vendor == Ati) {
       Ven = 94;
-    } else /*if (gGraphics[i].Vendor == Intel)*/ {
+    } else if (gGraphics[i].Vendor == Intel) {
       Ven = 96;
     }
 
@@ -1886,7 +1878,7 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuKextPatches()
   for (Index = 0; Index < NrKexts; Index++) {
 //    InputBootArgs = (__typeof__(InputBootArgs))AllocateZeroPool(sizeof(REFIT_INPUT_DIALOG));
     InputBootArgs = new REFIT_INPUT_DIALOG;
-    InputBootArgs->Title.SWPrintf("%30s", KextPatchesMenu[Index].Label);
+    InputBootArgs->Title.SWPrintf("%90s", KextPatchesMenu[Index].Label);
 //    InputBootArgs->Tag = TAG_INPUT;
     InputBootArgs->Row = 0xFFFF; //cursor
     InputBootArgs->Item = &(KextPatchesMenu[Index].MenuItem);
@@ -1922,8 +1914,8 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuKextBlockInjection(CONST CHAR16* UniSysVer)
   while (Kext) {
     if (StrCmp(Kext->KextDirNameUnderOEMPath, UniSysVer) == 0) {
     	if ( SubScreen == NULL ) {
-    		Entry = newREFIT_MENU_ITEM_OPTIONS(&SubScreen, ActionEnter, SCREEN_KEXT_INJECT, sysVer);
-    		SubScreen->AddMenuInfoLine_f("Choose/check kext to disable:");
+          Entry = newREFIT_MENU_ITEM_OPTIONS(&SubScreen, ActionEnter, SCREEN_KEXT_INJECT, sysVer);
+          SubScreen->AddMenuInfoLine_f("Choose/check kext to disable:");
     	}
 //      InputBootArgs = (__typeof__(InputBootArgs))AllocateZeroPool(sizeof(REFIT_INPUT_DIALOG));
       InputBootArgs = new REFIT_INPUT_DIALOG;
@@ -1956,7 +1948,7 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuKextBlockInjection(CONST CHAR16* UniSysVer)
   return Entry;
 }
 
-LOADER_ENTRY *SubMenuKextInjectMgmt(LOADER_ENTRY *Entry)
+LOADER_ENTRY* LOADER_ENTRY::SubMenuKextInjectMgmt()
 {
 	LOADER_ENTRY       *SubEntry;
 	REFIT_MENU_SCREEN  *SubScreen;
@@ -1964,11 +1956,11 @@ LOADER_ENTRY *SubMenuKextInjectMgmt(LOADER_ENTRY *Entry)
 //	UINTN               i;
 	CHAR8               ShortOSVersion[8];
 //	CHAR16             *UniSysVer = NULL;
-	CHAR8              *ChosenOS = Entry->OSVersion;
+	CHAR8              *ChosenOS = OSVersion;
 
 	SubEntry = new LOADER_ENTRY();
 	NewEntry_(SubEntry, &SubScreen, ActionEnter, SCREEN_SYSTEM, "Block injected kexts->");
-	SubEntry->Flags = Entry->Flags;
+	SubEntry->Flags = Flags;
 	if (ChosenOS) {
 //    DBG("chosen os %s\n", ChosenOS);
 		//shorten os version 10.11.6 -> 10.11
@@ -1983,7 +1975,6 @@ LOADER_ENTRY *SubMenuKextInjectMgmt(LOADER_ENTRY *Entry)
 			}
 		}
 
-
 		SubScreen->AddMenuInfoLine_f("Block injected kexts for target version of macOS: %s",
 		                ShortOSVersion);
 
@@ -1992,11 +1983,11 @@ LOADER_ENTRY *SubMenuKextInjectMgmt(LOADER_ENTRY *Entry)
 			SubScreen->AddMenuEntry(SubMenuKextBlockInjection(L"10"), true);
 
 			CHAR16 DirName[256];
-			if (OSTYPE_IS_OSX_INSTALLER(Entry->LoaderType)) {
+			if (OSTYPE_IS_OSX_INSTALLER(LoaderType)) {
 				snwprintf(DirName, sizeof(DirName), "10_install");
 			}
 			else {
-				if (OSTYPE_IS_OSX_RECOVERY(Entry->LoaderType)) {
+				if (OSTYPE_IS_OSX_RECOVERY(LoaderType)) {
 					snwprintf(DirName, sizeof(DirName), "10_recovery");
 				}
 				else {
@@ -2012,11 +2003,11 @@ LOADER_ENTRY *SubMenuKextInjectMgmt(LOADER_ENTRY *Entry)
 			snwprintf(DirName, sizeof(DirName), "%s", ShortOSVersion);
 			SubScreen->AddMenuEntry(SubMenuKextBlockInjection(DirName), true);
 
-			if (OSTYPE_IS_OSX_INSTALLER(Entry->LoaderType)) {
+			if (OSTYPE_IS_OSX_INSTALLER(LoaderType)) {
 				snwprintf(DirName, sizeof(DirName), "%s_install", ShortOSVersion);
 			}
 			else {
-				if (OSTYPE_IS_OSX_RECOVERY(Entry->LoaderType)) {
+				if (OSTYPE_IS_OSX_RECOVERY(LoaderType)) {
 					snwprintf(DirName, sizeof(DirName), "%s_recovery", ShortOSVersion);
 				}
 				else {
@@ -2032,27 +2023,27 @@ LOADER_ENTRY *SubMenuKextInjectMgmt(LOADER_ENTRY *Entry)
 		{
 			{
 				CHAR16 OSVersionKextsDirName[256];
-				if ( AsciiStrCmp(ShortOSVersion, Entry->OSVersion) == 0 ) {
-					snwprintf(OSVersionKextsDirName, sizeof(OSVersionKextsDirName), "%s.0", Entry->OSVersion);
+				if ( AsciiStrCmp(ShortOSVersion, OSVersion) == 0 ) {
+					snwprintf(OSVersionKextsDirName, sizeof(OSVersionKextsDirName), "%s.0", OSVersion);
 				}else{
-					snwprintf(OSVersionKextsDirName, sizeof(OSVersionKextsDirName), "%s", Entry->OSVersion);
+					snwprintf(OSVersionKextsDirName, sizeof(OSVersionKextsDirName), "%s", OSVersion);
 				}
 				SubScreen->AddMenuEntry(SubMenuKextBlockInjection(OSVersionKextsDirName), true);
 			}
 
 			CHAR16 DirName[256];
-			if (OSTYPE_IS_OSX_INSTALLER(Entry->LoaderType)) {
+			if (OSTYPE_IS_OSX_INSTALLER(LoaderType)) {
 				snwprintf(DirName, sizeof(DirName), "%s_install",
-				        Entry->OSVersion);
+				        OSVersion);
 			}
 			else {
-				if (OSTYPE_IS_OSX_RECOVERY(Entry->LoaderType)) {
+				if (OSTYPE_IS_OSX_RECOVERY(LoaderType)) {
 					snwprintf(DirName, sizeof(DirName), "%s_recovery",
-					        Entry->OSVersion);
+					        OSVersion);
 				}
 				else {
 					snwprintf(DirName, sizeof(DirName), "%s_normal",
-					        Entry->OSVersion);
+					        OSVersion);
 				}
 			}
 			SubScreen->AddMenuEntry(SubMenuKextBlockInjection(DirName), true);
@@ -2091,7 +2082,7 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuKernelPatches()
   for (Index = 0; Index < NrKernels; Index++) {
 //    InputBootArgs = (__typeof__(InputBootArgs))AllocateZeroPool(sizeof(REFIT_INPUT_DIALOG));
     InputBootArgs = new REFIT_INPUT_DIALOG;
-    InputBootArgs->Title.SWPrintf("%30s", KernelPatchesMenu[Index].Label);
+    InputBootArgs->Title.SWPrintf("%90s", KernelPatchesMenu[Index].Label);
 //    InputBootArgs->Tag = TAG_INPUT;
     InputBootArgs->Row = 0xFFFF; //cursor
     InputBootArgs->Item = &(KernelPatchesMenu[Index].MenuItem);
@@ -2118,7 +2109,7 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuBootPatches()
   for (Index = 0; Index < NrBoots; Index++) {
 //    InputBootArgs = (__typeof__(InputBootArgs))AllocateZeroPool(sizeof(REFIT_INPUT_DIALOG));
     InputBootArgs = new REFIT_INPUT_DIALOG;
-    InputBootArgs->Title.SWPrintf("%30s", BootPatchesMenu[Index].Label);
+    InputBootArgs->Title.SWPrintf("%90s", BootPatchesMenu[Index].Label);
 //    InputBootArgs->Tag = TAG_INPUT;
     InputBootArgs->Row = 0xFFFF; //cursor
     InputBootArgs->Item = &(BootPatchesMenu[Index].MenuItem);
@@ -2138,30 +2129,27 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuBinaries()
 
   Entry = newREFIT_MENU_ITEM_OPTIONS(&SubScreen, ActionEnter, SCREEN_BINARIES, "Binaries patching->");
 
-	SubScreen->AddMenuInfoLine_f("%s", gCPUStructure.BrandString);
-	SubScreen->AddMenuInfoLine_f("Real CPUID: 0x%06X", gCPUStructure.Signature);
-
+  SubScreen->AddMenuInfoLine_f("%s", gCPUStructure.BrandString);
+  SubScreen->AddMenuInfoLine_f("Real CPUID: 0x%06X", gCPUStructure.Signature);
 
   SubScreen->AddMenuItemInput(64,  "Debug", FALSE);
   SubScreen->AddMenuInfo_f("----------------------");
   SubScreen->AddMenuItemInput(104, "Fake CPUID:", TRUE);
-//  SubScreen->AddMenuItemInput(108, "Kernel patching allowed", FALSE);
-  SubScreen->AddMenuItemInput(45,  "Kernel Support CPU", FALSE);
   SubScreen->AddMenuItemInput(91,  "Kernel Lapic", FALSE);
   SubScreen->AddMenuItemInput(105, "Kernel XCPM", FALSE);
   SubScreen->AddMenuItemInput(48,  "Kernel PM", FALSE);
-  SubScreen->AddMenuItemInput(121,  "Panic No Kext Dump", FALSE);
+  SubScreen->AddMenuItemInput(121, "Panic No Kext Dump", FALSE);
   SubScreen->AddMenuEntry(SubMenuKernelPatches(), true);
   SubScreen->AddMenuInfo_f("----------------------");
   SubScreen->AddMenuItemInput(46,  "AppleIntelCPUPM Patch", FALSE);
   SubScreen->AddMenuItemInput(47,  "AppleRTC Patch", FALSE);
+  SubScreen->AddMenuItemInput(45,  "No 8 Apples Patch", FALSE);
   SubScreen->AddMenuItemInput(61,  "Dell SMBIOS Patch", FALSE);
 //  SubScreen->AddMenuItemInput(115, "No Caches", FALSE);
 //  SubScreen->AddMenuItemInput(44,  "Kext patching allowed", FALSE);
   SubScreen->AddMenuEntry(SubMenuKextPatches(), true);
   SubScreen->AddMenuInfo_f("----------------------");
   SubScreen->AddMenuEntry(SubMenuBootPatches(), true);
-
 
   SubScreen->AddMenuEntry(&MenuEntryReturn, false);
   return Entry;
@@ -2189,8 +2177,7 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuDropTables()
       //       sign, DropTable->Signature,
       //       OTID, DropTable->TableId,
       //       DropTable->Length, DropTable->Length);
-//    InputBootArgs = (__typeof__(InputBootArgs))AllocateZeroPool(sizeof(REFIT_INPUT_DIALOG));
-    InputBootArgs = new REFIT_INPUT_DIALOG;
+      InputBootArgs = new REFIT_INPUT_DIALOG;
       InputBootArgs->Title.SWPrintf("Drop \"%4.4s\" \"%8.8s\" %d", sign, OTID, DropTable->Length);
 //      InputBootArgs->Tag = TAG_INPUT;
       InputBootArgs->Row = 0xFFFF; //cursor
@@ -2206,12 +2193,10 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuDropTables()
   SubScreen->AddMenuItemInput(4, "Drop all OEM SSDT", FALSE);
   SubScreen->AddMenuItemInput(113, "Automatic smart merge", FALSE);
 
-  //SubScreen->AddMenuInfoLine_f("PATCHED AML:");
   if (ACPIPatchedAML) {
     ACPI_PATCHED_AML *ACPIPatchedAMLTmp = ACPIPatchedAML;
     while (ACPIPatchedAMLTmp) {
-//    InputBootArgs = (__typeof__(InputBootArgs))AllocateZeroPool(sizeof(REFIT_INPUT_DIALOG));
-    InputBootArgs = new REFIT_INPUT_DIALOG;
+      InputBootArgs = new REFIT_INPUT_DIALOG;
       InputBootArgs->Title.SWPrintf("Drop \"%ls\"", ACPIPatchedAMLTmp->FileName);
 //      InputBootArgs->Tag = TAG_INPUT;
       InputBootArgs->Row = 0xFFFF; //cursor
@@ -2256,7 +2241,7 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuSmbios()
   SubScreen->AddMenuEntry(&MenuEntryReturn, false);
   return Entry;
 }
-
+/*
 REFIT_ABSTRACT_MENU_ENTRY* SubMenuDropDSM()
 {
   // init
@@ -2290,7 +2275,7 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuDropDSM()
 
   return Entry;
 }
-
+*/
 REFIT_ABSTRACT_MENU_ENTRY* SubMenuDsdtFix()
 {
   REFIT_MENU_ITEM_OPTIONS   *Entry; //, *SubEntry;
@@ -2354,7 +2339,7 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuDSDTPatches()  //yyyy
   for (Index = 0; Index < PatchDsdtNum; Index++) {
 //    InputBootArgs = (__typeof__(InputBootArgs))AllocateZeroPool(sizeof(REFIT_INPUT_DIALOG));
     InputBootArgs = new REFIT_INPUT_DIALOG;
-    InputBootArgs->Title.takeValueFrom(gSettings.PatchDsdtLabel[Index]);
+    InputBootArgs->Title.SWPrintf("%90s", gSettings.PatchDsdtLabel[Index]);
 //    InputBootArgs->Tag = TAG_INPUT;
     InputBootArgs->Row = 0xFFFF; //cursor
     InputBootArgs->Item = &DSDTPatchesMenu[Index];
@@ -2411,7 +2396,7 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuACPI()
 
   SubScreen->AddMenuEntry(SubMenuDsdts(), true);
   SubScreen->AddMenuEntry(SubMenuDropTables(), true);
-  SubScreen->AddMenuEntry(SubMenuDropDSM(), true);
+//  SubScreen->AddMenuEntry(SubMenuDropDSM(), true);
   SubScreen->AddMenuEntry(SubMenuDsdtFix(), true);
   SubScreen->AddMenuEntry(SubMenuDSDTPatches(), true);
   SubScreen->AddMenuItemInput(49, "Fix MCFG", FALSE);
@@ -2467,7 +2452,7 @@ VOID CreateMenuProps(REFIT_MENU_SCREEN   *SubScreen, DEV_PROPERTY *Prop)
 			SubScreen->AddMenuInfo_f("     value: 0x%08llx", *(UINT64*)Prop->Value);
 		break;
 	case kTagTypeString:
-			SubScreen->AddMenuInfo_f("     value: %30s", Prop->Value);
+			SubScreen->AddMenuInfo_f("     value: %90s", Prop->Value);
 		break;
 	case   kTagTypeFalse:
 		SubScreen->AddMenuInfo_f(("     value: false"));
@@ -2475,7 +2460,9 @@ VOID CreateMenuProps(REFIT_MENU_SCREEN   *SubScreen, DEV_PROPERTY *Prop)
 	case   kTagTypeTrue:
 		SubScreen->AddMenuInfo_f(("     value: true"));
 		break;
-
+  case   kTagTypeFloat:
+    SubScreen->AddMenuInfo_f("     value: %f", *(float*)Prop->Value);
+    break;
 	default: //type data, print first 24 bytes
 			 //CHAR8* Bytes2HexStr(UINT8 *data, UINTN len)
 			SubScreen->AddMenuInfo_f("     value[%llu]: %24s", Prop->ValueLen, Bytes2HexStr((UINT8*)Prop->Value, MIN(24, Prop->ValueLen)));
@@ -2739,15 +2726,15 @@ VOID  OptionsMenu(OUT REFIT_ABSTRACT_MENU_ENTRY **ChosenEntry)
 
   // remember, if you extended this menu then change procedures
   // FillInputs and ApplyInputs
-  if (!(ThemeX.HideUIFlags & HIDEUI_FLAG_MENU_TITLE_IMAGE)) {
-    OptionMenu.TitleImage = ThemeX.GetIcon(BUILTIN_ICON_FUNC_OPTIONS);
-  } else {
-    OptionMenu.TitleImage.setEmpty();
-  }
-
   gThemeOptionsChanged = FALSE;
 
   if (OptionMenu.Entries.size() == 0) {
+    if (!(ThemeX.HideUIFlags & HIDEUI_FLAG_MENU_TITLE_IMAGE)) {
+      OptionMenu.TitleImage = ThemeX.GetIcon(BUILTIN_ICON_FUNC_OPTIONS);
+    }
+    //else {
+    //  OptionMenu.TitleImage.setEmpty();
+    //}
     gThemeOptionsChanged = TRUE;
     OptionMenu.ID = SCREEN_OPTIONS;
     OptionMenu.GetAnime(); //FALSE;
@@ -2776,15 +2763,13 @@ VOID  OptionsMenu(OUT REFIT_ABSTRACT_MENU_ENTRY **ChosenEntry)
 
   while (!MenuExit) {
     MenuExit = OptionMenu.RunGenericMenu(Style, &EntryIndex, ChosenEntry);
-    //    MenuExit = RunMenu(&OptionMenu, ChosenEntry);
-    if (  MenuExit == MENU_EXIT_ESCAPE || (*ChosenEntry)->getREFIT_MENU_ITEM_RETURN()  )
+    if (MenuExit == MENU_EXIT_ESCAPE || (*ChosenEntry)->getREFIT_MENU_ITEM_RETURN())
       break;
     if (MenuExit == MENU_EXIT_ENTER || MenuExit == MENU_EXIT_DETAILS) {
       //enter input dialog or subscreen
       if ((*ChosenEntry)->SubScreen != NULL) {
         SubMenuExit = 0;
         while (!SubMenuExit) {
-
           SubMenuExit = (*ChosenEntry)->SubScreen->RunGenericMenu(Style, &SubEntryIndex, &TmpChosenEntry);
           if (SubMenuExit == MENU_EXIT_ESCAPE || TmpChosenEntry->getREFIT_MENU_ITEM_RETURN()  ){
             ApplyInputs();
@@ -2795,7 +2780,6 @@ VOID  OptionsMenu(OUT REFIT_ABSTRACT_MENU_ENTRY **ChosenEntry)
             if (TmpChosenEntry->SubScreen != NULL) {
               NextMenuExit = 0;
               while (!NextMenuExit) {
-
                 NextMenuExit = TmpChosenEntry->SubScreen->RunGenericMenu(Style, &NextEntryIndex, &NextChosenEntry);
                 if (NextMenuExit == MENU_EXIT_ESCAPE || NextChosenEntry->getREFIT_MENU_ITEM_RETURN()  ){
                   ApplyInputs();

@@ -83,6 +83,7 @@
 		9580403D2413F8CA00F09F2C /* lodepng.c in Sources */ = {isa = PBXBuildFile; fileRef = 9580403C2413F8C900F09F2C /* lodepng.c */; };
 		958040402414070F00F09F2C /* ThemeImage.m in Sources */ = {isa = PBXBuildFile; fileRef = 9580403F2414070F00F09F2C /* ThemeImage.m */; };
 		958861DA235F75FB00B64173 /* Driver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 958861D9235F75FB00B64173 /* Driver.swift */; };
+		95BFF3D42451C0420088BA8E /* PEFindAndReplace.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95BFF3D32451C0420088BA8E /* PEFindAndReplace.swift */; };
 		95C515222369BAF500E4A3A8 /* NVRAM.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95C515212369BAF500E4A3A8 /* NVRAM.swift */; };
 		95C5152F236A0A7400E4A3A8 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95C5152E236A0A7400E4A3A8 /* SettingsView.swift */; };
 		95C51536236B1F7700E4A3A8 /* RunAtLogin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95C51535236B1F7700E4A3A8 /* RunAtLogin.swift */; };
@@ -429,6 +430,7 @@
 		9580403E2414070F00F09F2C /* ThemeImage.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ThemeImage.h; sourceTree = "<group>"; };
 		9580403F2414070F00F09F2C /* ThemeImage.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ThemeImage.m; sourceTree = "<group>"; };
 		958861D9235F75FB00B64173 /* Driver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Driver.swift; sourceTree = "<group>"; };
+		95BFF3D32451C0420088BA8E /* PEFindAndReplace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PEFindAndReplace.swift; sourceTree = "<group>"; };
 		95C515212369BAF500E4A3A8 /* NVRAM.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NVRAM.swift; sourceTree = "<group>"; };
 		95C5152E236A0A7400E4A3A8 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		95C51535236B1F7700E4A3A8 /* RunAtLogin.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RunAtLogin.swift; sourceTree = "<group>"; };
@@ -546,6 +548,7 @@
 				9571A229241C2E7F000D6645 /* PlistEditor.storyboard */,
 				9571A225241C01DB000D6645 /* PlistEditorWC.swift */,
 				9571A223241BFF44000D6645 /* PlistEditorVC.swift */,
+				95BFF3D32451C0420088BA8E /* PEFindAndReplace.swift */,
 				9559D52524355A800007FCF3 /* PEConstraints.swift */,
 				955500F9241AD7C200618F57 /* PEFindButton.swift */,
 				955500FB241AD7C200618F57 /* ReplaceButton.swift */,
@@ -653,8 +656,8 @@
 				955BEE1123C6B43C00425AB0 /* ThemeManager */,
 				95E68AC9235B862F002B37A5 /* AppDelegate.swift */,
 				95C5152E236A0A7400E4A3A8 /* SettingsView.swift */,
-				95696B7A2401829800AFAD37 /* GengConfig.swift */,
 				95C51535236B1F7700E4A3A8 /* RunAtLogin.swift */,
+				95696B7A2401829800AFAD37 /* GengConfig.swift */,
 				95E68ACB235B862F002B37A5 /* ViewController.swift */,
 				95E68ADE235B86A1002B37A5 /* bdmesg.swift */,
 				955689DA23A2728000AD323C /* IO.swift */,
@@ -959,6 +962,7 @@
 				9559D52624355A810007FCF3 /* PEConstraints.swift in Sources */,
 				954BBE99238196EE0032425F /* Locale.swift in Sources */,
 				9555010C241AD7C300618F57 /* PEOutlineView.swift in Sources */,
+				95BFF3D42451C0420088BA8E /* PEFindAndReplace.swift in Sources */,
 				95E68ACA235B862F002B37A5 /* AppDelegate.swift in Sources */,
 				955BEE1523C6B49C00425AB0 /* ThemeView.swift in Sources */,
 				958861DA235F75FB00B64173 /* Driver.swift in Sources */,
@@ -1305,7 +1309,7 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1.18;
+				CURRENT_PROJECT_VERSION = 1.22;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/Clover/Frameworks",
@@ -1332,7 +1336,7 @@
 					"$(PROJECT_DIR)/Clover/Library",
 					"$(PROJECT_DIR)",
 				);
-				MARKETING_VERSION = 1.18;
+				MARKETING_VERSION = 1.22;
 				OTHER_LDFLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = org.slice.Clover;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1353,7 +1357,7 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1.18;
+				CURRENT_PROJECT_VERSION = 1.22;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/Clover/Frameworks",
@@ -1379,7 +1383,7 @@
 					"$(PROJECT_DIR)/Clover/Library",
 					"$(PROJECT_DIR)",
 				);
-				MARKETING_VERSION = 1.18;
+				MARKETING_VERSION = 1.22;
 				OTHER_LDFLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = org.slice.Clover;
 				PRODUCT_NAME = "$(TARGET_NAME)";

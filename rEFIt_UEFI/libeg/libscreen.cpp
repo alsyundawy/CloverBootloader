@@ -439,7 +439,7 @@ VOID egGetScreenSize(OUT INTN *ScreenWidth, OUT INTN *ScreenHeight)
         *ScreenHeight = egScreenHeight;
 }
 
-XString egScreenDescription(VOID)
+XString8 egScreenDescription(VOID)
 {
     if (egHasGraphics) {
         if (GraphicsOutput != NULL) {
@@ -447,10 +447,10 @@ XString egScreenDescription(VOID)
         } else if (UgaDraw != NULL) {
             return SPrintf("UGA Draw (EFI 1.10), %lldx%lld", egScreenWidth, egScreenHeight);
         } else {
-            return "Internal Error"_XS;
+            return "Internal Error"_XS8;
         }
     } else {
-        return "Text Console"_XS;
+        return "Text Console"_XS8;
     }
 }
 
@@ -562,6 +562,9 @@ EFI_STATUS egScreenShot(VOID)
     XStringW Name = SWPrintf("EFI\\CLOVER\\misc\\screenshot%lld.png", Index);
     if (!FileExists(SelfRootDir, Name.wc_str())) {
       Status = egSaveFile(SelfRootDir, Name.wc_str(), FileData, FileDataLength);
+      if (EFI_ERROR(Status))
+        Status = egSaveFile(NULL, Name.wc_str(), FileData, FileDataLength);
+
       if (!EFI_ERROR(Status)) {
         break;
       }
@@ -589,7 +592,7 @@ static EFI_STATUS GopSetModeAndReconnectTextOut(IN UINT32 ModeNumber)
     Status = GraphicsOutput->SetMode(GraphicsOutput, ModeNumber);
     MsgLog("Video mode change to mode #%d: %s\n", ModeNumber, strerror(Status));
 
-    if (gFirmwareClover && !EFI_ERROR (Status)) { 
+    if (gFirmwareClover && !EFI_ERROR(Status)) { 
         // When we change mode on GOP, we need to reconnect the drivers which produce simple text out
         // Otherwise, they won't produce text based on the new resolution
         Status = gBS->LocateHandleBuffer (
@@ -599,7 +602,7 @@ static EFI_STATUS GopSetModeAndReconnectTextOut(IN UINT32 ModeNumber)
             &HandleCount,
             &HandleBuffer
             );
-        if (!EFI_ERROR (Status)) {
+        if (!EFI_ERROR(Status)) {
             for (UINTN Index = 0; Index < HandleCount; Index++) {
                 gBS->DisconnectController (HandleBuffer[Index], NULL, NULL);
             }
@@ -607,7 +610,7 @@ static EFI_STATUS GopSetModeAndReconnectTextOut(IN UINT32 ModeNumber)
                 gBS->ConnectController (HandleBuffer[Index], NULL, NULL, TRUE);
             }
             if (HandleBuffer != NULL) {
-                FreePool (HandleBuffer);
+                FreePool(HandleBuffer);
             }
             egDumpSetConsoleVideoModes();
         }

@@ -169,7 +169,7 @@ FindDevicePathNodeWithType (
 EFI_STATUS
 CreateBootOptionDevicePath (
     IN  EFI_HANDLE      FileDeviceHandle,
-    IN  CONST CHAR16          *FileName,
+    IN  CONST XStringW&  FileName,
     IN  BOOLEAN         UseShortForm,
     OUT EFI_DEVICE_PATH_PROTOCOL    **DevicePath
     )
@@ -204,12 +204,12 @@ CreateBootOptionDevicePath (
         //
         TmpDevPath = DuplicateDevicePath (FindDevicePathNodeWithType (*DevicePath, MEDIA_DEVICE_PATH, MEDIA_HARDDRIVE_DP));
         if (TmpDevPath != NULL) {
-            FreePool (*DevicePath);
+            FreePool(*DevicePath);
             *DevicePath = TmpDevPath;
         } /* else {
           TmpDevPath = DuplicateDevicePath (FindDevicePathNodeWithType (*DevicePath, HARDWARE_DEVICE_PATH, HW_VENDOR_DP));
           if (TmpDevPath != NULL) {
-            FreePool (*DevicePath);
+            FreePool(*DevicePath);
             *DevicePath = TmpDevPath;
           }
         }*/
@@ -355,7 +355,7 @@ GetBootOrder (
   //
   // Get gEfiGlobalVariableGuid:BootOrder and it's length
   //
-  *BootOrder = (__typeof_am__(*BootOrder))GetNvramVariable (BOOT_ORDER_VAR, &gEfiGlobalVariableGuid, NULL, &BootOrderSize);
+  *BootOrder = (__typeof_am__(*BootOrder))GetNvramVariable(BOOT_ORDER_VAR, &gEfiGlobalVariableGuid, NULL, &BootOrderSize);
   if (*BootOrder == NULL) {
     DBG(" EFI_NOT_FOUND\n");
     return EFI_NOT_FOUND;
@@ -397,7 +397,7 @@ AddToBootOrder (
   //
   // Make new order buffer with space for our option
   //
-  BootOrderNew = (__typeof__(BootOrderNew))AllocateZeroPool ((BootOrderLen + 1) * sizeof(UINT16));
+  BootOrderNew = (__typeof__(BootOrderNew))AllocateZeroPool((BootOrderLen + 1) * sizeof(UINT16));
   if (BootOrderNew == NULL) {
     DBG("AddToBootOrder: EFI_OUT_OF_RESOURCES\n");
 	if (BootOrder) {
@@ -439,8 +439,8 @@ AddToBootOrder (
   DBG("SetVariable: %ls = %s\n", BOOT_ORDER_VAR, strerror(Status));
   PrintBootOrder(BootOrderNew, BootOrderLen);
 
-  FreePool (BootOrder);
-  FreePool (BootOrderNew);
+  FreePool(BootOrder);
+  FreePool(BootOrderNew);
 
   // Debug: Get and print new BootOrder value
   //GetBootOrder (&BootOrder, &BootOrderLen);
@@ -488,7 +488,7 @@ DeleteFromBootOrder (
     // BootNum found at Index - copy the rest over it
     //
     if (Index < BootOrderLen - 1) {
-        CopyMem (&BootOrder[Index],
+        CopyMem(&BootOrder[Index],
                  &BootOrder[Index + 1],
                  (BootOrderLen - (Index + 1)) * sizeof(UINT16)
                  );
@@ -508,7 +508,7 @@ DeleteFromBootOrder (
                                );
     DBG("SetVariable: %ls = %s\n", BOOT_ORDER_VAR, strerror(Status));
     
-    FreePool (BootOrder);
+    FreePool(BootOrder);
     
     // Debug: Get and print new BootOrder value
     //GetBootOrder (&BootOrder, &BootOrderLen);
@@ -536,7 +536,7 @@ PrintBootOption (
         Index, BootOption->BootNum, BootOption->Description, BootOption->Attributes);
     FPStr = FileDevicePathToStr(BootOption->FilePathList);
     DBG("    %ls\n", FPStr);
-    FreePool (FPStr);
+    FreePool(FPStr);
     
     VarSizeTmp = sizeof(BootOption->Attributes)
                         + sizeof(BootOption->FilePathListLength)
@@ -651,7 +651,7 @@ CompileBootOption (
                                 + BootOption->DescriptionSize 
                                 + BootOption->FilePathListLength
                                 + BootOption->OptionalDataSize;
-    BootOption->Variable = (__typeof__(BootOption->Variable))AllocateZeroPool (BootOption->VariableSize);
+    BootOption->Variable = (__typeof__(BootOption->Variable))AllocateZeroPool(BootOption->VariableSize);
     if (BootOption->Variable == NULL) {
         DBG("CompileBootOption: EFI_OUT_OF_RESOURCES\n");
         return EFI_OUT_OF_RESOURCES;
@@ -667,16 +667,16 @@ CompileBootOption (
     Ptr8 += sizeof(BootOption->FilePathListLength);
     
     // Description
-    CopyMem ((CHAR16*)Ptr8, BootOption->Description, BootOption->DescriptionSize);
+    CopyMem((CHAR16*)Ptr8, BootOption->Description, BootOption->DescriptionSize);
     Ptr8 += BootOption->DescriptionSize;
     
     // FilePathList
-    CopyMem (Ptr8, BootOption->FilePathList, BootOption->FilePathListLength);
+    CopyMem(Ptr8, BootOption->FilePathList, BootOption->FilePathListLength);
     Ptr8 += BootOption->FilePathListLength;
     
     // OptionalData
     if (BootOption->OptionalDataSize > 0) {
-        CopyMem (Ptr8, BootOption->OptionalData, BootOption->OptionalDataSize);
+        CopyMem(Ptr8, BootOption->OptionalData, BootOption->OptionalDataSize);
 //        Ptr8 += BootOption->OptionalDataSize;
     }
     
@@ -701,7 +701,7 @@ GetBootOption (
   BootOption->BootNum = BootNum;
 	snwprintf(VarName, sizeof(VarName), "Boot%04hX", BootNum);
 
-  BootOption->Variable = (__typeof__(BootOption->Variable))GetNvramVariable (VarName, &gEfiGlobalVariableGuid, NULL, (UINTN *)(UINTN)(OFFSET_OF(BO_BOOT_OPTION, VariableSize) + (UINTN)BootOption));
+  BootOption->Variable = (__typeof__(BootOption->Variable))GetNvramVariable(VarName, &gEfiGlobalVariableGuid, NULL, (UINTN *)(UINTN)(OFFSET_OF(BO_BOOT_OPTION, VariableSize) + (UINTN)BootOption));
   if (BootOption->Variable == NULL) {
     return EFI_NOT_FOUND;
   }
@@ -746,7 +746,7 @@ FindFreeBootNum (
 EFI_STATUS
 FindBootOptionForFile (
     IN  EFI_HANDLE      FileDeviceHandle,
-    IN  CONST CHAR16          *FileName,
+    IN  CONST XStringW&  FileName,
     OUT UINT16          *BootNum,
     OUT UINTN           *BootIndex
     )
@@ -760,7 +760,7 @@ FindBootOptionForFile (
   UINTN               SearchedDevicePathSize[2];
 
 
-  DBG("FindBootOptionForFile: %p, %ls\n", FileDeviceHandle, FileName);
+  DBG("FindBootOptionForFile: %p, %ls\n", FileDeviceHandle, FileName.wc_str());
 
   //
   // Get BootOrder - we will search only options listed in BootOrder.
@@ -793,7 +793,7 @@ FindBootOptionForFile (
   BootOption.Variable = NULL;
   for (Index = 0; Index < BootOrderLen; Index++) {
     if (BootOption.Variable != NULL) {
-      FreePool (BootOption.Variable);
+      FreePool(BootOption.Variable);
       BootOption.Variable = NULL;
     }
     //
@@ -817,7 +817,7 @@ FindBootOptionForFile (
       if (BootIndex != NULL) {
         *BootIndex = Index;
       }
-      FreePool (BootOption.Variable);
+      FreePool(BootOption.Variable);
       //WaitForKeyPress(L"press a key to continue\n\n");
       return EFI_SUCCESS;
     }
@@ -825,7 +825,7 @@ FindBootOptionForFile (
   }
 
   if (BootOption.Variable != NULL) {
-    FreePool (BootOption.Variable);
+    FreePool(BootOption.Variable);
   }
 
   DBG("FindBootOptionForFile: Not found.\n");
@@ -872,7 +872,7 @@ PrintBootOptions (
     }
 
     PrintBootOption (&BootOption, Index);
-    FreePool (BootOption.Variable);
+    FreePool(BootOption.Variable);
   }
 
   if (AllBootOptions) {
@@ -905,7 +905,7 @@ PrintBootOptions (
       }
 
       PrintBootOption (&BootOption, 0);
-      FreePool (BootOption.Variable);
+      FreePool(BootOption.Variable);
       FoundOthers = TRUE;
     }
     if (!FoundOthers) {
@@ -979,7 +979,7 @@ AddBootOption (
   //
   // Free allocated space
   //
-  FreePool (BootOption->Variable);
+  FreePool(BootOption->Variable);
 
   //
   // Update BootOrder - add our new boot option as BootIndex in the list
@@ -1002,7 +1002,7 @@ AddBootOption (
 EFI_STATUS
 AddBootOptionForFile (
     IN  EFI_HANDLE      FileDeviceHandle,
-    IN  CONST CHAR16          *FileName,
+    IN  CONST XStringW&  FileName,
     IN  BOOLEAN         UseShortForm,
     IN  CONST CHAR16          *Description,
     IN  UINT8           *OptionalData,
@@ -1016,7 +1016,7 @@ AddBootOptionForFile (
 
 
 	DBG("\nAddBootOptionForFile: %p, %ls, %ls\n %ls, %llu\n",
-      FileDeviceHandle, FileName,
+      FileDeviceHandle, FileName.wc_str(),
       UseShortForm ? L"ShortDevPath" : L"FullDevPath",
       Description, BootIndex);
 
@@ -1039,7 +1039,7 @@ AddBootOptionForFile (
 
   Status = AddBootOption (&BootOption, BootIndex);
   if (EFI_ERROR(Status)) {
-    FreePool (BootOption.FilePathList);
+    FreePool(BootOption.FilePathList);
     DBG("AddBootOptionForFile: Error: %s\n", strerror(Status));
     return Status;
   }
@@ -1047,7 +1047,7 @@ AddBootOptionForFile (
   //
   // Free allocated space
   //
-  FreePool (BootOption.FilePathList);
+  FreePool(BootOption.FilePathList);
 
   //
   // Output vars
@@ -1108,14 +1108,14 @@ DeleteBootOption (
 EFI_STATUS
 DeleteBootOptionForFile (
     IN  EFI_HANDLE      FileDeviceHandle,
-    IN  CONST CHAR16          *FileName
+    IN  CONST XStringW&  FileName
     )
 {
   EFI_STATUS          Status;
   IN  UINT16          BootNum;
 
 
-  DBG("\nDeleteBootOptionForFile: %p, %ls\n", FileDeviceHandle, FileName);
+  DBG("\nDeleteBootOptionForFile: %p, %ls\n", FileDeviceHandle, FileName.wc_str());
   do {
     Status = FindBootOptionForFile (FileDeviceHandle, FileName, &BootNum, NULL);
     if (!EFI_ERROR(Status)) {
@@ -1162,7 +1162,7 @@ DeleteBootOptionsContainingFile (
   BootOption.Variable = NULL;
   for (Index = 0; Index < BootOrderLen; Index++) {
     if (BootOption.Variable != NULL) {
-      FreePool (BootOption.Variable);
+      FreePool(BootOption.Variable);
       BootOption.Variable = NULL;
     }
     //
@@ -1190,7 +1190,7 @@ DeleteBootOptionsContainingFile (
   }
 
   if (BootOption.Variable != NULL) {
-    FreePool (BootOption.Variable);
+    FreePool(BootOption.Variable);
   }
 
   DBG("DeleteBootOptionContainingFile: %s\n", strerror(ReturnStatus));

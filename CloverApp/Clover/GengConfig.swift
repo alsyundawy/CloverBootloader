@@ -156,6 +156,7 @@ extension SETTINGS_DATA {
     return Fixes
   }
   
+  // available only in r5016 and older
   func getDropOEM_DSM() -> [String : Any]? {
     var dict = [String : Any]()
     /*
@@ -343,7 +344,13 @@ final class CloverConfig: NSObject {
       DSDT["Patches"] = Patches
       
       // MARK: ACPI->DSDT->DropOEM_DSM
-      DSDT["DropOEM_DSM"] = s.getDropOEM_DSM()
+      if AppSD.CloverRevision <= 5016 {
+        /*
+         removed for 5017 (release 5016 still has it) commit:
+         https://github.com/CloverHackyColor/CloverBootloader/commit/0b7eed38f14400c8501228a30dcc023e1132cec3
+         */
+        DSDT["DropOEM_DSM"] = s.getDropOEM_DSM()
+      }
       
       ACPI["DSDT"] = DSDT
       
@@ -721,7 +728,13 @@ final class CloverConfig: NSObject {
       var KernelAndKextPatches = [String : Any]()
      
       KernelAndKextPatches["#Debug"] =                      s.kpValue(for: "KPDebug", type: .BOOLEAN)
-      KernelAndKextPatches["KernelCpu"] =                   s.kpValue(for: "KPKernelCpu", type: .BOOLEAN)
+      if AppSD.CloverRevision <= 5016 {
+        /*
+         removed for 5017 (release 5016 still has it) commit:
+         https://github.com/CloverHackyColor/CloverBootloader/commit/0b7eed38f14400c8501228a30dcc023e1132cec3
+         */
+        KernelAndKextPatches["KernelCpu"] =                   s.kpValue(for: "KPKernelCpu", type: .BOOLEAN)
+      }
       KernelAndKextPatches["KernelLapic"] =                 s.kpValue(for: "KPKernelLapic", type: .BOOLEAN)
       if AppSD.CloverRevision >= 4250 {
         KernelAndKextPatches["KernelXCPM"] =                s.kpValue(for: "KPKernelXCPM", type: .BOOLEAN)
@@ -783,8 +796,8 @@ final class CloverConfig: NSObject {
       // SMBIOS TYPE1
       SMBIOS["Manufacturer"] =        s.value(for: "ManufactureName", type: .CHAR8String)
       SMBIOS["ProductName"] =         s.value(for: "ProductName", type: .CHAR8String)
-      SMBIOS["Version"] =             s.value(for: "SerialNr", type: .CHAR8String)
-      SMBIOS["SerialNumber"] =        s.value(for: "ReleaseDate", type: .CHAR8String)
+      SMBIOS["Version"] =             s.value(for: "VersionNr", type: .CHAR8String)
+      SMBIOS["SerialNumber"] =        s.value(for: "SerialNr", type: .CHAR8String)
       SMBIOS["SmUUID"] =              s.value(for: "SmUUID", type: .UUIDString)
       SMBIOS["Family"] =              s.value(for: "FamilyName", type: .CHAR8String)
       // SMBIOS TYPE2

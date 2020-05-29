@@ -296,8 +296,8 @@ void DropTableFromRSDT(UINT32 Signature, UINT64 TableId, UINT32 Length)
   CHAR8 sign[5], OTID[9];
   sign[4] = 0;
   OTID[8] = 0;
-  CopyMem(sign, &Signature, 4);
-  CopyMem(OTID, &TableId, 8);
+  CopyMem(&sign[0], &Signature, 4);
+  CopyMem(&OTID[0], &TableId, 8);
   DBG("Drop tables from RSDT, SIGN=%s TableID=%s Length=%d\n", sign, OTID, (INT32)Length);
 
   UINT32 Count = RsdtTableCount();
@@ -310,8 +310,8 @@ void DropTableFromRSDT(UINT32 Signature, UINT64 TableId, UINT32 Length)
       // skip NULL entry
       continue;
     }
-    CopyMem(&sign, &Table->Signature, 4);
-    CopyMem(&OTID, &Table->OemTableId, 8);
+    CopyMem(&sign[0], &Table->Signature, 4);
+    CopyMem(&OTID[0], &Table->OemTableId, 8);
     //DBG(" Found table: %s  %s\n", sign, OTID);
     if (!((Signature && Table->Signature == Signature) &&
           (!TableId || Table->OemTableId == TableId) &&
@@ -337,8 +337,8 @@ void DropTableFromXSDT(UINT32 Signature, UINT64 TableId, UINT32 Length)
   CHAR8 sign[5], OTID[9];
   sign[4] = 0;
   OTID[8] = 0;
-  CopyMem(sign, &Signature, 4);
-  CopyMem(OTID, &TableId, 8);
+  CopyMem(&sign[0], &Signature, 4);
+  CopyMem(&OTID[0], &TableId, 8);
   DBG("Drop tables from XSDT, SIGN=%s TableID=%s Length=%d\n", sign, OTID, (INT32)Length);
 
   UINT32 Count = XsdtTableCount();
@@ -351,8 +351,8 @@ void DropTableFromXSDT(UINT32 Signature, UINT64 TableId, UINT32 Length)
       // skip NULL entry
       continue;
     }
-    CopyMem(&sign, &Table->Signature, 4);
-    CopyMem(&OTID, &Table->OemTableId, 8);
+    CopyMem(&sign[0], &Table->Signature, 4);
+    CopyMem(&OTID[0], &Table->OemTableId, 8);
     //DBG(" Found table: %s  %s\n", sign, OTID);
     if (!((Signature && Table->Signature == Signature) &&
           (!TableId || Table->OemTableId == TableId) &&
@@ -457,8 +457,8 @@ VOID PatchAllTables()
             continue;
           }
           Len = FixAny((UINT8*)NewTable, Len,
-                       gSettings.PatchDsdtFind[i], gSettings.LenToFind[i],
-                       gSettings.PatchDsdtReplace[i], gSettings.LenToReplace[i]);
+                       (const UINT8*)gSettings.PatchDsdtFind[i], gSettings.LenToFind[i],
+                       (const UINT8*)gSettings.PatchDsdtReplace[i], gSettings.LenToReplace[i]);
           //DBG(" OK\n");
         }
       }
@@ -925,9 +925,9 @@ VOID DumpChildSsdt(EFI_ACPI_DESCRIPTION_HEADER *TableEntry, CONST CHAR16 *DirNam
           }
 
           // Take Signature and OemId for printing
-          CopyMem(&Signature, &((EFI_ACPI_DESCRIPTION_HEADER *)adr)->Signature, 4);
+          CopyMem(&Signature[0], &((EFI_ACPI_DESCRIPTION_HEADER *)adr)->Signature, 4);
           Signature[4] = 0;
-          CopyMem(&OemTableId, &((EFI_ACPI_DESCRIPTION_HEADER *)adr)->OemTableId, 8);
+          CopyMem(&OemTableId[0], &((EFI_ACPI_DESCRIPTION_HEADER *)adr)->OemTableId, 8);
           OemTableId[8] = 0;
           stripTrailingSpaces(OemTableId);
 			DBG("      * %llu: '%s', '%s', Rev: %d, Len: %d  ", adr, Signature, OemTableId,
@@ -1013,9 +1013,9 @@ EFI_STATUS DumpTable(EFI_ACPI_DESCRIPTION_HEADER *TableEntry, CONST CHAR8 *Check
   BOOLEAN       ReleaseFileName = FALSE;
 
   // Take Signature and OemId for printing
-  CopyMem(&Signature, &TableEntry->Signature, 4);
+  CopyMem(&Signature[0], &TableEntry->Signature, 4);
   Signature[4] = 0;
-  CopyMem(&OemTableId, &TableEntry->OemTableId, 8);
+  CopyMem(&OemTableId[0], &TableEntry->OemTableId, 8);
   OemTableId[8] = 0;
   stripTrailingSpaces(OemTableId);
 
@@ -1158,7 +1158,7 @@ EFI_STATUS DumpFadtTables(EFI_ACPI_2_0_FIXED_ACPI_DESCRIPTION_TABLE *Fadt, CONST
     // Taking it as structure from Acpi 2.0 just to get Version (it's reserved field in Acpi 1.0 and == 0)
     Facs = (EFI_ACPI_2_0_FIRMWARE_ACPI_CONTROL_STRUCTURE*)(UINTN)FacsAdr;
     // Take Signature for printing
-    CopyMem(&Signature, &Facs->Signature, 4);
+    CopyMem(&Signature[0], &Facs->Signature, 4);
     Signature[4] = 0;
     DBG("      %p: '%s', Ver: %d, Len: %d", Facs, Signature, Facs->Version, Facs->Length);
 
@@ -1274,7 +1274,7 @@ VOID DumpTables(VOID *RsdPtrVoid, CHAR16 *DirName)
 
   // Take Signature for printing
   CHAR8 Signature[9];
-  CopyMem(&Signature, &RsdPtr->Signature, 8);
+  CopyMem(&Signature[0], &RsdPtr->Signature, 8);
   Signature[8] = 0;
 
   // Take Rsdt and Xsdt
@@ -1451,7 +1451,7 @@ VOID DumpTables(VOID *RsdPtrVoid, CHAR16 *DirName)
  */
 VOID SaveOemTables()
 {
-  EFI_STATUS              Status;
+//  EFI_STATUS              Status;
   VOID                    *RsdPtr;
   CHAR16                  *AcpiOriginPath = PoolPrint(L"%s\\ACPI\\origin", OEMPath);
   BOOLEAN                 Saved = FALSE;
@@ -1482,8 +1482,8 @@ VOID SaveOemTables()
   // Search Acpi 2.0 or newer in UEFI Sys.Tables
   //
   RsdPtr = NULL;
-  Status = EfiGetSystemConfigurationTable (&gEfiAcpi20TableGuid, &RsdPtr);
-  if (RsdPtr != NULL) {
+  /*Status = */EfiGetSystemConfigurationTable (&gEfiAcpi20TableGuid, &RsdPtr);
+  if (RsdPtr != NULL) { //it may be EFI_SUCCESS but null pointer
     DBG("Found UEFI Acpi 2.0 RSDP at %p\n", RsdPtr);
     // if tables already saved, then just print to log
     DumpTables(RsdPtr, Saved ? NULL : AcpiOriginPath);
@@ -1824,7 +1824,7 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, CHAR8 *OSVersion)
         //        DBG("RSDT entry = 0x%X\n", *pEntryR);
         if (*pEntryR != 0) {
           *pEntryX = 0;
-          CopyMem (pEntryX, pEntryR, sizeof(UINT32));
+          CopyMem(pEntryX, pEntryR, sizeof(UINT32));
           pEntryR++;
           pEntry += sizeof(UINT64);
         } else {
@@ -2050,10 +2050,10 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, CHAR8 *OSVersion)
       FixChecksum(&FadtPointer->Header);
     }
   }
-  dropDSM = 0xFFFF; //by default we drop all OEM _DSM. They have no sense for us.
-  if (defDSM) {
-    dropDSM = gSettings.DropOEM_DSM;   //if set by user
-  }
+//  dropDSM = 0xFFFF; //by default we drop all OEM _DSM. They have no sense for us.
+//  if (defDSM) {
+//    dropDSM = gSettings.DropOEM_DSM;   //if set by user
+//  }
 
   if (gSettings.DebugDSDT) {
     DBG("Output DSDT before patch to /EFI/CLOVER/ACPI/origin/DSDT-or.aml\n");
@@ -2063,7 +2063,7 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, CHAR8 *OSVersion)
   //native DSDT or loaded we want to apply autoFix to this
   //  if (gSettings.FixDsdt) { //fix even with zero mask because we want to know PCIRootUID and count(?)
   DBG("Apply DsdtFixMask=0x%08X\n", gSettings.FixDsdt);
-  DBG("   drop _DSM mask=0x%04hX\n", dropDSM);
+//  DBG("   drop _DSM mask=0x%04hX\n", dropDSM);
   FixBiosDsdt((UINT8*)(UINTN)FadtPointer->XDsdt, FadtPointer, OSVersion);
   if (gSettings.DebugDSDT) {
     for (Index=0; Index < 60; Index++) {
@@ -2449,7 +2449,7 @@ EFI_STATUS PatchACPI_OtherOS(CONST CHAR16* OsSubdir, BOOLEAN DropSSDT)
   }
   // if RSDP not found - quit
   if (!RsdPointer) {
-    return EFI_UNSUPPORTED;
+    return Status;
   }
 
   //
@@ -2459,7 +2459,7 @@ EFI_STATUS PatchACPI_OtherOS(CONST CHAR16* OsSubdir, BOOLEAN DropSSDT)
   if (Rsdt != NULL && Rsdt->Header.Signature != EFI_ACPI_2_0_ROOT_SYSTEM_DESCRIPTION_TABLE_SIGNATURE) {
     Rsdt = NULL;
   }
-  DBG("RSDT at %p\n", Rsdt);
+  DBG("RSDT at 0x%llX\n", (UINTN)Rsdt);
 
   // check for XSDT
   Xsdt = NULL;
@@ -2469,7 +2469,7 @@ EFI_STATUS PatchACPI_OtherOS(CONST CHAR16* OsSubdir, BOOLEAN DropSSDT)
       Xsdt = NULL;
     }
   }
-  DBG("XSDT at %p\n", Xsdt);
+  DBG("XSDT at 0x%llX\n", (UINTN)Xsdt);
 
   // if RSDT and XSDT not found - quit
   if (Rsdt == NULL && Xsdt == NULL) {
@@ -2485,7 +2485,7 @@ EFI_STATUS PatchACPI_OtherOS(CONST CHAR16* OsSubdir, BOOLEAN DropSSDT)
   } else if (Rsdt) {
     FadtPointer = (EFI_ACPI_2_0_FIXED_ACPI_DESCRIPTION_TABLE*)(UINTN)(Rsdt->Entry);
   }
-  DBG("FADT pointer = %p\n", FadtPointer);
+  DBG("FADT pointer = 0x%llX\n", (UINTN)FadtPointer);
 
   // if not found - quit
   if(FadtPointer == NULL) {
@@ -2524,6 +2524,19 @@ EFI_STATUS PatchACPI_OtherOS(CONST CHAR16* OsSubdir, BOOLEAN DropSSDT)
    DropTableFromRSDT(EFI_ACPI_4_0_SECONDARY_SYSTEM_DESCRIPTION_TABLE_SIGNATURE, 0, 0);
    }
    */
+  if (gSettings.ACPIDropTables) {
+    ACPI_DROP_TABLE *DropTable;
+    DbgHeader("ACPIDropTables");
+    for (DropTable = gSettings.ACPIDropTables; DropTable; DropTable = DropTable->Next) {
+      // only for tables that have OtherOS true
+      if (DropTable->OtherOS && DropTable->MenuItem.BValue) {
+        //DBG("Attempting to drop \"%4.4a\" (%8.8X) \"%8.8a\" (%16.16lX) L=%d\n", &(DropTable->Signature), DropTable->Signature, &(DropTable->TableId), DropTable->TableId, DropTable->Length);
+        DropTableFromXSDT(DropTable->Signature, DropTable->TableId, DropTable->Length);
+        DropTableFromRSDT(DropTable->Signature, DropTable->TableId, DropTable->Length);
+      }
+    }
+  }
+
   //
   // find and inject other ACPI tables
   //

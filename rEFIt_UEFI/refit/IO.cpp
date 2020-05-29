@@ -92,7 +92,7 @@ _PoolCatPrint (
 
 EFI_STATUS
 EFIAPI
-_PoolPrint (
+_PoolPrint(
   IN POOL_PRINT     *Context,
   IN CHAR16         *Buffer
   );
@@ -194,7 +194,7 @@ Returns:
   //
   // Append the new text
   //
-  CopyMem (spc->Str + spc->Len, Buffer, len * sizeof (CHAR16));
+  CopyMem(spc->Str + spc->Len, Buffer, len * sizeof (CHAR16));
   spc->Len += len;
 
   //
@@ -241,7 +241,7 @@ Returns:
 {
   PRINT_STATE ps;
 
-  SetMem (&ps, sizeof (ps), 0);
+  SetMem(&ps, sizeof (ps), 0);
   ps.Output   = (IN EFI_STATUS (EFIAPI *)(VOID *context, CONST CHAR16 *str)) Output; // C++ doesn't cast automatically to void* for param 1
   ps.Context  = spc;
   ps.fmt.u.pw = fmt;
@@ -253,7 +253,7 @@ Returns:
 
 CHAR16 *
 EFIAPI
-PoolPrint (
+PoolPrint(
   IN CONST CHAR16             *fmt,
   ...
   )
@@ -358,7 +358,7 @@ Returns:
     return 0;
   }
 
-  SetMem (&ps, sizeof (ps), 0);
+  SetMem(&ps, sizeof (ps), 0);
   ps.Context  = Out;
   ps.Output   = (EFI_STATUS (EFIAPI *) (VOID *, CONST CHAR16 *)) Out->OutputString;  // C++ doesn't cast automatically to void* for param 1
   ps.SetAttr  = (EFI_STATUS (EFIAPI *) (VOID *, UINTN)) Out->SetAttribute;
@@ -485,7 +485,7 @@ PFLUSH (
     if (mPrintMode.OutputPause) {
 
       Status = EFI_NOT_READY;
-      while (EFI_ERROR (Status)) {
+      while (EFI_ERROR(Status)) {
         Status = gST->ConIn->ReadKeyStroke (gST->ConIn, &Key);
       }
 
@@ -495,7 +495,7 @@ PFLUSH (
     ps->Output (ps->Context, ps->Buffer);
   }
 
-  CopyMem (
+  CopyMem(
     ((CHAR8 *) (ps->Buffer)) - PRINT_JOINT_BUFFER_LEN,
     ((CHAR8 *) (ps->Pos)) - PRINT_JOINT_BUFFER_LEN,
     PRINT_JOINT_BUFFER_LEN
@@ -721,14 +721,14 @@ Returns:
     return 0;
   }
 
-  Item.Scratch = (__typeof__(Item.Scratch))AllocateZeroPool (sizeof (CHAR16) * PRINT_ITEM_BUFFER_LEN);
+  Item.Scratch = (__typeof__(Item.Scratch))AllocateZeroPool(sizeof (CHAR16) * PRINT_ITEM_BUFFER_LEN);
   if (NULL == Item.Scratch) {
     return EFI_OUT_OF_RESOURCES;
   }
 
-  Buffer = (__typeof__(Buffer))AllocateZeroPool (sizeof (CHAR16) * PRINT_STRING_LEN);
+  Buffer = (__typeof__(Buffer))AllocateZeroPool(sizeof (CHAR16) * PRINT_STRING_LEN);
   if (NULL == Buffer) {
-    FreePool (Item.Scratch);
+    FreePool(Item.Scratch);
     return EFI_OUT_OF_RESOURCES;
   }
 
@@ -962,8 +962,8 @@ Returns:
   //
   PFLUSH (ps);
 
-  FreePool (Item.Scratch);
-  FreePool (Buffer);
+  FreePool(Item.Scratch);
+  FreePool(Buffer);
 
   return ps->Len;
 }
@@ -987,7 +987,7 @@ WaitForSingleEvent (
 		// Create a timer event
 		//
 		Status = gBS->CreateEvent(EVT_TIMER, 0, NULL, NULL, &TimerEvent);
-		if (!EFI_ERROR (Status))
+		if (!EFI_ERROR(Status))
 		{
 			//
 			// Set the timer event
@@ -1002,7 +1002,7 @@ WaitForSingleEvent (
 
 			Status = gBS->WaitForEvent(2, WaitList, &Index);
 			gBS->CloseEvent (TimerEvent);
-			if (!EFI_ERROR (Status) && Index == 1)
+			if (!EFI_ERROR(Status) && Index == 1)
 			{
 				Status = EFI_TIMEOUT;
 			}
@@ -1063,37 +1063,6 @@ WaitFor2EventWithTsc (
 
 #define ONE_SECOND  10000000
 #define ONE_MSECOND    10000
-
-// TimeoutDefault for a wait in seconds
-// return EFI_TIMEOUT if no inputs
-//the function must be in menu class
-//so UpdatePointer(); => mPointer.Update(&gItemID, &Screen->mAction);
-EFI_STATUS WaitForInputEventPoll(REFIT_MENU_SCREEN* ScreenPtr, UINTN TimeoutDefault)
-{
-  REFIT_MENU_SCREEN& Screen = *ScreenPtr;
-  EFI_STATUS Status = EFI_SUCCESS;
-  UINTN TimeoutRemain = TimeoutDefault * 100;
-
-  while (TimeoutRemain != 0) {
-    Status = WaitFor2EventWithTsc (gST->ConIn->WaitForKey, NULL, 10);
-    if (Status != EFI_TIMEOUT) {
-      break;
-    }
-    Screen.UpdateFilm();
-    if (gSettings.PlayAsync) {
-      CheckSyncSound();
-    }
-    TimeoutRemain--;
-    if (Screen.mPointer.isAlive()) {
-      Screen.mPointer.UpdatePointer();
-      Status = Screen.CheckMouseEvent(); //out: gItemID, gAction
-      if (Status != EFI_TIMEOUT) { //this check should return timeout if no mouse events occured
-        break;
-      }
-    }
-  }
-  return Status;
-}
 
 
 BOOLEAN
@@ -1252,7 +1221,7 @@ SetOutputPause (
 
 EFI_STATUS
 EFIAPI
-_PoolPrint (
+_PoolPrint(
   IN POOL_PRINT     *Context,
   IN CHAR16         *Buffer
   )
@@ -1524,7 +1493,7 @@ Returns:
     return ;
   }
 
- // SetMem (InStr, StrLength * sizeof (CHAR16), 0);
+ // SetMem(InStr, StrLength * sizeof (CHAR16), 0);
   //prepare default string
   Len = StrLen(InStr);
   StrPos = 0;
@@ -1558,7 +1527,7 @@ Returns:
         StrPos -= 1;
         Update  = StrPos;
         Delete  = 1;
-        CopyMem (InStr + StrPos, InStr + StrPos + 1, sizeof (CHAR16) * (Len - StrPos));
+        CopyMem(InStr + StrPos, InStr + StrPos + 1, sizeof (CHAR16) * (Len - StrPos));
 
         //
         // Adjust the current column and row
@@ -1603,7 +1572,7 @@ Returns:
         if (Len) {
           Update  = StrPos;
           Delete  = 1;
-          CopyMem (InStr + StrPos, InStr + StrPos + 1, sizeof (CHAR16) * (Len - StrPos));
+          CopyMem(InStr + StrPos, InStr + StrPos + 1, sizeof (CHAR16) * (Len - StrPos));
         }
         break;
 
@@ -1679,7 +1648,7 @@ Returns:
       Len = StrLen (InStr);
 
       if (Delete) {
-        SetMem (InStr + Len, Delete * sizeof (CHAR16), 0x00);
+        SetMem(InStr + Len, Delete * sizeof (CHAR16), 0x00);
       }
 
       if (StrPos > Len) {

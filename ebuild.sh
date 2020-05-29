@@ -414,6 +414,7 @@ checkCmdlineArguments() {
 checkToolchain() {
     case "$TOOLCHAIN" in
         XCLANG|XCODE*) checkXcode ;;
+        *) ;;
     esac
 
   if [[ "$SYSNAME" == Linux ]]; then
@@ -427,7 +428,7 @@ checkToolchain() {
     export GCC53_BIN="$TOOLCHAIN_DIR/cross/bin/x86_64-clover-linux-gnu-"
     if [[ $TOOLCHAIN == GCC* ]] && [[ ! -x "${GCC53_BIN}gcc" ]]; then
       echo "No clover toolchain found !" >&2
-      echo "Build it with the build_gcc8.sh script or define the TOOLCHAIN_DIR variable." >&2
+      echo "Build it with the build_gcc9.sh script or define the TOOLCHAIN_DIR variable." >&2
       exit 1
     fi
   fi
@@ -499,6 +500,9 @@ MainBuildScript() {
         set +u
         source ./edksetup.sh BaseTools
         set -u
+		if [ ! -z "${MTOC_PREFIX:-}" ]; then
+        	echo "MTOC=$MTOC_PREFIX/mtoc.NEW_jief" > "$WORKSPACE"/Xcode/CloverX64/mtoc_path.txt
+		fi
         cd "$CLOVERROOT"
  #   else
  #       echo "Building from: $WORKSPACE"

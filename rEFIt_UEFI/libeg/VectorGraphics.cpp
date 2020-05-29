@@ -36,7 +36,8 @@
 
 #include "XTheme.h"
 extern XTheme ThemeX;
-extern CONST CHAR8* IconsNames[];
+extern const CHAR8* IconsNames[];
+extern const INTN IconsNamesSize;
 
 
 #define NSVG_RGB(r, g, b) (((unsigned int)b) | ((unsigned int)g << 8) | ((unsigned int)r << 16))
@@ -52,7 +53,7 @@ extern UINTN FrameTime;
 
 textFaces       textFace[4]; //0-help 1-message 2-menu 3-test, far future it will be infinite list with id
 
-EFI_STATUS XTheme::ParseSVGXIcon(INTN Id, const XString& IconNameX, XImage* Image)
+EFI_STATUS XTheme::ParseSVGXIcon(INTN Id, const XString8& IconNameX, OUT XImage* Image, OUT void **SVGIcon)
 {
   EFI_STATUS      Status = EFI_NOT_FOUND;
   NSVGimage       *SVGimage;
@@ -63,7 +64,6 @@ EFI_STATUS XTheme::ParseSVGXIcon(INTN Id, const XString& IconNameX, XImage* Imag
   NSVGgroup   *group;
   NSVGimage   *IconImage;
   NSVGshape   *shapeNext, *shapesTail = NULL, *shapePrev;
-//  CONST CHAR8 *IconName = IconNameX.c_str();
 
   NSVGparser* p2 = nsvg__createParser();
   IconImage = p2->image;
@@ -90,11 +90,11 @@ EFI_STATUS XTheme::ParseSVGXIcon(INTN Id, const XString& IconNameX, XImage* Imag
 //      if (BootCampStyle && (strstr(IconName, "selection_big") != NULL)) {
 //        shape->opacity = 0.f;
 //      }
-      if (BootCampStyle && IconNameX.ExistIn("selection_big")) {
+      if (BootCampStyle && IconNameX.contains("selection_big")) {
         shape->opacity = 0.f;
       }
 //      if (strstr(shape->id, "BoundingRect") != NULL) {
-      if (XString().takeValueFrom(shape->id).ExistIn("BoundingRect")) {
+      if (XString8().takeValueFrom(shape->id).contains("BoundingRect")) {
         //there is bounds after nsvgParse()
         IconImage->width = shape->bounds[2] - shape->bounds[0];
         IconImage->height = shape->bounds[3] - shape->bounds[1];
@@ -102,12 +102,12 @@ EFI_STATUS XTheme::ParseSVGXIcon(INTN Id, const XString& IconNameX, XImage* Imag
         if ( IconImage->height < 1.f ) {
           IconImage->height = 200.f;
         }
-        if (IconNameX.ExistIn("selection_big") && (!SelectionOnTop)) {
+        if (IconNameX.contains("selection_big") && (!SelectionOnTop)) {
           MainEntriesSize = (int)(IconImage->width * Scale); //xxx
           row0TileSize = MainEntriesSize + (int)(16.f * Scale);
-          DBG("main entry size = %lld\n", MainEntriesSize);
+  //        DBG("main entry size = %lld\n", MainEntriesSize);
         }
-        if (IconNameX.ExistIn("selection_small") && (!SelectionOnTop)) {
+        if (IconNameX.contains("selection_small") && (!SelectionOnTop)) {
           row1TileSize = (int)(IconImage->width * Scale);
         }
 
@@ -160,7 +160,7 @@ EFI_STATUS XTheme::ParseSVGXIcon(INTN Id, const XString& IconNameX, XImage* Imag
  //     if (strcmp(group->id, IconNameX.c_str()) == 0) {
  //       break;
  //     }
-      if (IconNameX == XString().takeValueFrom(group->id)) {
+      if (IconNameX == XString8().takeValueFrom(group->id)) {
         break;
       }
       group = group->parent;
@@ -178,13 +178,9 @@ EFI_STATUS XTheme::ParseSVGXIcon(INTN Id, const XString& IconNameX, XImage* Imag
   //  }
 
   float bounds[4];
-  bounds[0] = FLT_MAX;
-  bounds[1] = FLT_MAX;
-  bounds[2] = -FLT_MAX;
-  bounds[3] = -FLT_MAX;
-  nsvg__imageBounds(p2, bounds);
+  nsvg__imageBounds(IconImage, bounds);
   CopyMem(IconImage->realBounds, bounds, 4 * sizeof(float));
-  if ((Id == BUILTIN_ICON_BANNER) && IconNameX.ExistIn("Banner")) {
+  if ((Id == BUILTIN_ICON_BANNER) && IconNameX.contains("Banner")) {
     BannerPosX = (int)(bounds[0] * Scale - CentreShift);
     if (BannerPosX < 0) {
       BannerPosX = 1; //one pixel
@@ -205,14 +201,15 @@ EFI_STATUS XTheme::ParseSVGXIcon(INTN Id, const XString& IconNameX, XImage* Imag
  //   DBG("return empty with status=%s\n", strerror(Status));
     return Status;
   }
-
+  IconImage->scale = Scale;
 //    DBG("begin rasterize %s\n", IconNameX.c_str());
   float tx = 0.f, ty = 0.f;
   if ((Id != BUILTIN_ICON_BACKGROUND) &&
       (Id != BUILTIN_ICON_ANIME) &&
-      IconNameX.ExistIn("Banner")) {
+      !IconNameX.contains("Banner")) {
     float realWidth = (bounds[2] - bounds[0]) * Scale;
     float realHeight = (bounds[3] - bounds[1]) * Scale;
+//        DBG("icon=%s width=%f realwidth=%f\n", IconNameX.c_str(), Width, realWidth);
     tx = (Width - realWidth) * 0.5f;
     ty = (Height - realHeight) * 0.5f;
   }
@@ -222,9 +219,13 @@ EFI_STATUS XTheme::ParseSVGXIcon(INTN Id, const XString& IconNameX, XImage* Imag
 
   nsvgDeleteRasterizer(rast);
   //  nsvg__deleteParser(p2);
-  //  nsvgDelete(p2->image);
-  *Image = NewImage;
-
+  //  nsvgDelete(p2->image); //somehow we can't delete them producing memory leaks
+  // well, we will use them later
+  *Image = NewImage; //copy array
+  if (SVGIcon) {
+    *SVGIcon = (void*)IconImage; //copy pointer into parser
+  }
+  
   return EFI_SUCCESS;
 }
 
@@ -239,7 +240,7 @@ EFI_STATUS XTheme::ParseSVGXTheme(CONST CHAR8* buffer)
   SVGParser = (void *)mainParser; //store the pointer for future use
   NSVGimage    *SVGimage = mainParser->image;
   if (!SVGimage) {
-    DBG("Theme not parsed!\n");
+ //   DBG("Theme not parsed!\n");
     return EFI_NOT_STARTED;
   }
 
@@ -265,71 +266,83 @@ EFI_STATUS XTheme::ParseSVGXTheme(CONST CHAR8* buffer)
   }
   Status = EFI_NOT_FOUND;
   if (!ThemeX.Daylight) {
-    Status = ParseSVGXIcon(BUILTIN_ICON_BACKGROUND, "Background_night"_XS, &BigBack);
+    Status = ParseSVGXIcon(BUILTIN_ICON_BACKGROUND, "Background_night"_XS8, &BigBack, NULL); //we should have a place for SVG background
   }
   if (EFI_ERROR(Status)) {
-    Status = ParseSVGXIcon(BUILTIN_ICON_BACKGROUND, "Background"_XS, &BigBack);
+    Status = ParseSVGXIcon(BUILTIN_ICON_BACKGROUND, "Background"_XS8, &BigBack, NULL);
   }
   DBG(" Background parsed [%lld, %lld]\n", BigBack.GetWidth(), BigBack.GetHeight()); //Background parsed [1067, 133]
   // --- Make Banner
   Banner.setEmpty(); //for the case of theme switch
   Status = EFI_NOT_FOUND;
   if (!ThemeX.Daylight) {
-    Status = ParseSVGXIcon(BUILTIN_ICON_BANNER, "Banner_night"_XS, &Banner);
+    Status = ParseSVGXIcon(BUILTIN_ICON_BANNER, "Banner_night"_XS8, &Banner, NULL);
   }
   if (EFI_ERROR(Status)) {
-    Status = ParseSVGXIcon(BUILTIN_ICON_BANNER, "Banner"_XS, &Banner);
+    Status = ParseSVGXIcon(BUILTIN_ICON_BANNER, "Banner"_XS8, &Banner, NULL);
   }
 //  DBG("Banner parsed\n");
   BanHeight = (int)(Banner.GetHeight() * Scale + 1.f);
   DBG(" parsed banner->width=%lld height=%lld\n", Banner.GetWidth(), BanHeight); //parsed banner->width=467 height=89
   
   // --- Make other icons
-
   for (INTN i = BUILTIN_ICON_FUNC_ABOUT; i <= BUILTIN_CHECKBOX_CHECKED; ++i) {
     if (i == BUILTIN_ICON_BANNER) { //exclude "logo" as it done as Banner
       continue;
     }
-    Icon* NewIcon = new Icon(i, false); //initialize without embedded
-    Status = ParseSVGXIcon(i, NewIcon->Name, &NewIcon->Image);
-    NewIcon->Native = !EFI_ERROR(Status);
-    if (EFI_ERROR(Status) &&
-        (i >= BUILTIN_ICON_VOL_INTERNAL_HFS) &&
-        (i <= BUILTIN_ICON_VOL_INTERNAL_REC)) {
-      NewIcon->Image = GetIconAlt(i, BUILTIN_ICON_VOL_INTERNAL); //copy existing
-    }
+    XIcon* NewIcon = new XIcon(i, false); //initialize without embedded
+    Status = ParseSVGXIcon(i, NewIcon->Name, &NewIcon->Image, &NewIcon->ImageSVG);
 //    DBG("parse %s status %s\n", NewIcon->Name.c_str(), strerror(Status));
-    Status = ParseSVGXIcon(i, NewIcon->Name + "_night"_XS, &NewIcon->ImageNight);
-//    DBG("...night status %s\n", strerror(Status));
-    if (EFI_ERROR(Status) &&
-        (i >= BUILTIN_ICON_VOL_INTERNAL_HFS) &&
-        (i <= BUILTIN_ICON_VOL_INTERNAL_REC)) {
-      NewIcon->ImageNight = GetIconAlt(i, BUILTIN_ICON_VOL_INTERNAL); //copy existing
+    NewIcon->Native = !EFI_ERROR(Status);
+    if (!EFI_ERROR(Status)) {
+      NewIcon->setFilled();
+      ParseSVGXIcon(i, NewIcon->Name + "_night"_XS8, &NewIcon->ImageNight, &NewIcon->ImageSVGnight);
+    }
+ //   DBG("parse night %s status %s\n", NewIcon->Name.c_str(), strerror(Status));
+    Icons.AddReference(NewIcon, true);
+    if (EFI_ERROR(Status)) {
+      if (i >= BUILTIN_ICON_VOL_INTERNAL_HFS && i <= BUILTIN_ICON_VOL_INTERNAL_REC) {
+        // call to GetIconAlt will get alternate/embedded into Icon if missing
+        GetIconAlt(i, BUILTIN_ICON_VOL_INTERNAL);
+      } else if (i == BUILTIN_SELECTION_BIG) {
+        GetIconAlt(i, BUILTIN_SELECTION_SMALL);
+      }
+    }
+  }
+  
+  // --- Make other OSes
+  for (INTN i = ICON_OTHER_OS; i < IconsNamesSize; ++i) {
+    if (AsciiStrLen(IconsNames[i]) == 0) break;
+    XIcon* NewIcon = new XIcon(i, false); //initialize without embedded
+    Status = ParseSVGXIcon(i, NewIcon->Name, &NewIcon->Image, &NewIcon->ImageSVG);
+//    DBG("parse %s i=%lld status %s\n", NewIcon->Name.c_str(), i, strerror(Status));
+    NewIcon->Native = !EFI_ERROR(Status);
+    if (!EFI_ERROR(Status)) {
+      ParseSVGXIcon(i, NewIcon->Name + "_night"_XS8, &NewIcon->ImageNight, &NewIcon->ImageSVGnight);
     }
     Icons.AddReference(NewIcon, true);
   }
+  //selection for bootcampstyle
+  XIcon *NewIcon = new XIcon(BUILTIN_ICON_SELECTION);
+  Status = ParseSVGXIcon(BUILTIN_ICON_SELECTION, "selection_indicator"_XS8, &NewIcon->Image, &NewIcon->ImageSVG);
+  if (!EFI_ERROR(Status)) {
+    Status = ParseSVGXIcon(BUILTIN_ICON_SELECTION, "selection_indicator_night"_XS8, &NewIcon->ImageNight, &NewIcon->ImageSVGnight);
+  }
+  Icons.AddReference(NewIcon, true);
 
   //selections
   SelectionBackgroundPixel.Red      = (SelectionColor >> 24) & 0xFF;
   SelectionBackgroundPixel.Green    = (SelectionColor >> 16) & 0xFF;
   SelectionBackgroundPixel.Blue     = (SelectionColor >> 8) & 0xFF;
   SelectionBackgroundPixel.Reserved = (SelectionColor >> 0) & 0xFF;
-
-  SelectionImages[0] = GetIcon(BUILTIN_SELECTION_BIG);
-  SelectionImages[2] = GetIcon(BUILTIN_SELECTION_SMALL);
-
-  //selection for bootcamp style
-  Status = EFI_NOT_FOUND;
-  if (!ThemeX.Daylight) {
-    Status = ParseSVGXIcon(BUILTIN_ICON_SELECTION, "selection_indicator_night"_XS, &SelectionImages[4]);
-  }
-  if (EFI_ERROR(Status)) {
-    Status = ParseSVGXIcon(BUILTIN_ICON_SELECTION, "selection_indicator"_XS, &SelectionImages[4]);
-  }
+//TODO make SelectionImages to be XIcon
+  SelectionImages[0] = *GetIconP(BUILTIN_SELECTION_BIG)->GetBest(!Daylight);
+  SelectionImages[2] = *GetIconP(BUILTIN_SELECTION_SMALL)->GetBest(!Daylight);
+  SelectionImages[4] = *GetIconP(BUILTIN_ICON_SELECTION)->GetBest(!Daylight);
 
   //buttons
   for (INTN i = BUILTIN_RADIO_BUTTON; i <= BUILTIN_CHECKBOX_CHECKED; ++i) {
-    Buttons[i - BUILTIN_RADIO_BUTTON] = GetIcon(i);
+    Buttons[i - BUILTIN_RADIO_BUTTON] = *GetIconP(i)->GetBest(!Daylight);
   }
   //for (int i=0 ; i<6 ; i+=2 ) {
   //SelectionImages[i].Draw(i*100, 0);
@@ -337,65 +350,65 @@ EFI_STATUS XTheme::ParseSVGXTheme(CONST CHAR8* buffer)
 
   //TODO parse anime like for PNG themes
   /*
-  Dict = GetProperty (DictPointer, "Anime");
+  Dict = GetProperty(DictPointer, "Anime");
   if (Dict != NULL) {
     INTN  Count = GetTagCount (Dict);
     for (INTN i = 0; i < Count; i++) {
       FILM *NewFilm = new FILM();
-      if (EFI_ERROR (GetElement (Dict, i, &Dict3))) {
+      if (EFI_ERROR(GetElement(Dict, i, &Dict3))) {
         continue;
       }
       if (Dict3 == NULL) {
         break;
       }
-      Dict2 = GetProperty (Dict3, "ID");
-      NewFilm->SetIndex((UINTN)GetPropertyInteger (Dict2, 1)); //default=main screen
+      Dict2 = GetProperty(Dict3, "ID");
+      NewFilm->SetIndex((UINTN)GetPropertyInteger(Dict2, 1)); //default=main screen
 
-      Dict2 = GetProperty (Dict3, "Path");
+      Dict2 = GetProperty(Dict3, "Path");
       if (Dict2 != NULL && (Dict2->type == kTagTypeString) && Dict2->string) {
         NewFilm->Path.takeValueFrom(Dict2->string);
       }
 
-      Dict2 = GetProperty (Dict3, "Frames");
-      NewFilm->NumFrames = (UINTN)GetPropertyInteger (Dict2, 0);
+      Dict2 = GetProperty(Dict3, "Frames");
+      NewFilm->NumFrames = (UINTN)GetPropertyInteger(Dict2, 0);
 
-      Dict2 = GetProperty (Dict3, "FrameTime");
-      NewFilm->FrameTime = (UINTN)GetPropertyInteger (Dict2, 50); //default will be 50ms
+      Dict2 = GetProperty(Dict3, "FrameTime");
+      NewFilm->FrameTime = (UINTN)GetPropertyInteger(Dict2, 50); //default will be 50ms
 
-      Dict2 = GetProperty (Dict3, "ScreenEdgeX");
+      Dict2 = GetProperty(Dict3, "ScreenEdgeX");
       if (Dict2 != NULL && (Dict2->type == kTagTypeString) && Dict2->string) {
-        if (AsciiStrCmp (Dict2->string, "left") == 0) {
+        if (AsciiStrCmp(Dict2->string, "left") == 0) {
           NewFilm->ScreenEdgeHorizontal = SCREEN_EDGE_LEFT;
-        } else if (AsciiStrCmp (Dict2->string, "right") == 0) {
+        } else if (AsciiStrCmp(Dict2->string, "right") == 0) {
           NewFilm->ScreenEdgeHorizontal = SCREEN_EDGE_RIGHT;
         }
       }
 
-      Dict2 = GetProperty (Dict3, "ScreenEdgeY");
+      Dict2 = GetProperty(Dict3, "ScreenEdgeY");
       if (Dict2 != NULL && (Dict2->type == kTagTypeString) && Dict2->string) {
-        if (AsciiStrCmp (Dict2->string, "top") == 0) {
+        if (AsciiStrCmp(Dict2->string, "top") == 0) {
           NewFilm->ScreenEdgeVertical = SCREEN_EDGE_TOP;
-        } else if (AsciiStrCmp (Dict2->string, "bottom") == 0) {
+        } else if (AsciiStrCmp(Dict2->string, "bottom") == 0) {
           NewFilm->ScreenEdgeVertical = SCREEN_EDGE_BOTTOM;
         }
       }
 
       //default values are centre
 
-      Dict2 = GetProperty (Dict3, "DistanceFromScreenEdgeX%");
-      NewFilm->FilmX = GetPropertyInteger (Dict2, INITVALUE);
+      Dict2 = GetProperty(Dict3, "DistanceFromScreenEdgeX%");
+      NewFilm->FilmX = GetPropertyInteger(Dict2, INITVALUE);
 
-      Dict2 = GetProperty (Dict3, "DistanceFromScreenEdgeY%");
-      NewFilm->FilmY = GetPropertyInteger (Dict2, INITVALUE);
+      Dict2 = GetProperty(Dict3, "DistanceFromScreenEdgeY%");
+      NewFilm->FilmY = GetPropertyInteger(Dict2, INITVALUE);
 
-      Dict2 = GetProperty (Dict3, "NudgeX");
-      NewFilm->NudgeX = GetPropertyInteger (Dict2, INITVALUE);
+      Dict2 = GetProperty(Dict3, "NudgeX");
+      NewFilm->NudgeX = GetPropertyInteger(Dict2, INITVALUE);
 
-      Dict2 = GetProperty (Dict3, "NudgeY");
-      NewFilm->NudgeY = GetPropertyInteger (Dict2, INITVALUE);
+      Dict2 = GetProperty(Dict3, "NudgeY");
+      NewFilm->NudgeY = GetPropertyInteger(Dict2, INITVALUE);
 
-      Dict2 = GetProperty (Dict3, "Once");
-      NewFilm->RunOnce = IsPropertyTrue (Dict2);
+      Dict2 = GetProperty(Dict3, "Once");
+      NewFilm->RunOnce = IsPropertyTrue(Dict2);
 
       NewFilm->GetFrames(ThemeX); //used properties: ID, Path, NumFrames
       ThemeX.Cinema.AddFilm(NewFilm);
@@ -417,14 +430,14 @@ EFI_STATUS XTheme::ParseSVGXTheme(CONST CHAR8* buffer)
   }
  // DBG("parsing svg theme finished\n");
 
-  return Status;
+  return EFI_SUCCESS;
 }
 
 EFI_STATUS XTheme::LoadSvgFrame(INTN i, OUT XImage* XFrame)
 {
   EFI_STATUS Status = EFI_NOT_FOUND;
-  XString XFrameName = SPrintf("frame_%04lld", i+1);
-  Status = ParseSVGXIcon(BUILTIN_ICON_ANIME, XFrameName, XFrame);
+  XString8 XFrameName = SPrintf("frame_%04lld", i+1);
+  Status = ParseSVGXIcon(BUILTIN_ICON_ANIME, XFrameName, XFrame, NULL); //svg anime will be full redesigned
   if (EFI_ERROR(Status)) {
     DBG("frame '%s' not loaded, status=%s\n", XFrameName.c_str(), strerror(Status));
   }
@@ -443,7 +456,7 @@ INTN renderSVGtext(XImage* TextBufferXY_ptr, INTN posX, INTN posY, INTN textType
   XImage& TextBufferXY = *TextBufferXY_ptr;
   INTN Width;
 //  UINTN i;
-  UINTN len;
+//  UINTN len;
   NSVGparser* p;
   NSVGrasterizer* rast;
   if (!textFace[textType].valid) {
@@ -481,7 +494,6 @@ INTN renderSVGtext(XImage* TextBufferXY_ptr, INTN posX, INTN posY, INTN textType
   nsvg__xformIdentity(text->xform);
   p->text = text;
 
-  len = string.size();
   Width = TextBufferXY.GetWidth();
   if ( fontSVG->unitsPerEm < 1.f ) {
     fontSVG->unitsPerEm = 1000.f;
@@ -497,8 +509,9 @@ INTN renderSVGtext(XImage* TextBufferXY_ptr, INTN posX, INTN posY, INTN textType
   x = (float)posX; //0.f;
   y = (float)posY + fontSVG->bbox[1] * Scale;
   p->isText = TRUE;
-  for (UINTN i=0; i < len; i++) {
-    CHAR16 letter = string.wc_str()[i];
+  size_t len = string.length();
+  for (size_t i=0; i < len; i++) {
+    CHAR16 letter = string.char16At(i);
     if (!letter) {
       break;
     }
@@ -523,6 +536,7 @@ INTN renderSVGtext(XImage* TextBufferXY_ptr, INTN posX, INTN posY, INTN textType
   nsvgDelete(p->image);
   return (INTN)RealWidth; //x;
 }
+
 VOID testSVG()
 {
   do {
@@ -619,7 +633,7 @@ VOID testSVG()
       Scale = (ScaleX > ScaleY)?ScaleY:ScaleX;
       float tx = 0; //-SVGimage->realBounds[0] * Scale;
       float ty = 0; //-SVGimage->realBounds[1] * Scale;
-		DBG("timing rasterize start tx=%f ty=%f\n", tx, ty);
+		DBG("timing rasterize start tx=%f ty=%f\n", tx, ty); //the aim is measure duration
       nsvgRasterize(rast, SVGimage, tx,ty,Scale,Scale, (UINT8*)NewImage.GetPixelPtr(0,0), (int)Width, (int)Height, (int)Width*4);
       DBG("timing rasterize end\n");
       NewImage.Draw((UGAWidth - Width) / 2,

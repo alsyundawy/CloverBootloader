@@ -1,21 +1,20 @@
 #include "../cpp_foundation/XString.h"
-#include "../cpp_foundation/XStringW.h"
 
 class XStringWTest : public XStringW
 {
 public:
   XStringWTest(const wchar_t *S) : XStringW()
   {
-    StrCpy(S);
+    strcpy(S);
   }
 };
 
-class XStringTest : public XString
+class XStringTest : public XString8
 {
 public:
-  XStringTest(const char *S) : XString()
+  XStringTest(const char *S) : XString8()
   {
-    StrCpy(S);
+    strcpy(S);
   }
 };
 

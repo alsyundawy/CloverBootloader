@@ -38,13 +38,14 @@
 
 #include "../../libeg/libeg.h"
 #include "../../refit/lib.h"
-#ifdef __cplusplus
+#include "../../Platform/LoaderUefi.h"
+#include "../../Platform/boot.h"
+
 #include "../../cpp_foundation/XObjArray.h"
-#include "../../cpp_foundation/XStringWArray.h"
+#include "../../cpp_foundation/XStringArray.h"
 #include "../../cpp_foundation/XString.h"
-#include "../../cpp_foundation/XStringW.h"
 #include "../../libeg/XPointer.h"
-#endif
+
 
 //
 //#define REFIT_DEBUG (2)
@@ -101,7 +102,7 @@ class REFIT_ABSTRACT_MENU_ENTRY
   UINTN              Row;
   CHAR16             ShortcutDigit;
   CHAR16             ShortcutLetter;
-  XImage            Image;
+  XIcon              Image;
   EG_RECT            Place;
   ACTION             AtClick;
   ACTION             AtDoubleClick;
@@ -109,8 +110,8 @@ class REFIT_ABSTRACT_MENU_ENTRY
   ACTION             AtMouseOver;
   REFIT_MENU_SCREEN *SubScreen;
 
-  virtual XImage* getDriveImage() { return nullptr; };
-  virtual XImage* getBadgeImage() { return nullptr; };
+  virtual XIcon* getDriveImage() { return nullptr; };
+  virtual XIcon* getBadgeImage() { return nullptr; };
 
   virtual REFIT_SIMPLE_MENU_ENTRY_TAG* getREFIT_SIMPLE_MENU_ENTRY_TAG() { return nullptr; };
   virtual REFIT_MENU_SWITCH* getREFIT_MENU_SWITCH() { return nullptr; };
@@ -130,6 +131,9 @@ class REFIT_ABSTRACT_MENU_ENTRY
   virtual REFIT_MENU_ENTRY_OTHER* getREFIT_MENU_ENTRY_OTHER() { return nullptr; };
   virtual REFIT_MENU_ENTRY_ITEM_ABSTRACT* getREFIT_MENU_ITEM_IEM_ABSTRACT() { return nullptr; };
   virtual REFIT_MENU_ITEM_BOOTNUM* getREFIT_MENU_ITEM_BOOTNUM() { return nullptr; };
+  virtual void StartLoader() {};
+  virtual void StartLegacy() {};
+  virtual void StartTool() {};
 
   REFIT_ABSTRACT_MENU_ENTRY() : Row(0), ShortcutDigit(0), ShortcutLetter(0), Image(), AtClick(ActionNone), AtDoubleClick(ActionNone), AtRightClick(ActionNone), AtMouseOver(ActionNone), SubScreen(NULL)
   {};
@@ -141,11 +145,11 @@ class REFIT_ABSTRACT_MENU_ENTRY
   : Title(Title_), Row(Row_), ShortcutDigit(ShortcutDigit_), ShortcutLetter(ShortcutLetter_), Image(), AtClick(AtClick_), AtDoubleClick(ActionNone), AtRightClick(ActionNone), AtMouseOver(ActionNone), SubScreen(NULL)
   {};
   REFIT_ABSTRACT_MENU_ENTRY(const XStringW& Title_, UINTN Row_,
-                            CHAR16 ShortcutDigit_, CHAR16 ShortcutLetter_, const XImage& Image_,
+                            CHAR16 ShortcutDigit_, CHAR16 ShortcutLetter_, const XIcon& Icon_,
                             EG_RECT Place_, ACTION AtClick_, ACTION AtDoubleClick_, ACTION AtRightClick_, ACTION AtMouseOver_,
                             REFIT_MENU_SCREEN *SubScreen_)
   : Title(Title_), Row(Row_), ShortcutDigit(ShortcutDigit_), ShortcutLetter(ShortcutLetter_),
-  Image(Image_), Place(Place_),
+  Image(Icon_), Place(Place_),
   AtClick(AtClick_), AtDoubleClick(AtDoubleClick_), AtRightClick(AtRightClick_), AtMouseOver(AtMouseOver_),
   SubScreen(SubScreen_) {};
 
@@ -261,16 +265,16 @@ class REFIT_ABSTRACT_MENU_ENTRY
 	{
 	public:
 	  CONST CHAR16     *DevicePathString;
-	  XString          LoadOptions; //moved here for compatibility with legacy
-	  CONST CHAR16     *LoaderPath;
-    XImage        DriveImage;
-    XImage        BadgeImage;
+	  XStringArray          LoadOptions; //moved here for compatibility with legacy
+	  XStringW    LoaderPath;
+    XIcon        DriveImage;
+    XIcon        BadgeImage;
 
     REFIT_MENU_ITEM_ABSTRACT_ENTRY_LOADER()
-    : REFIT_ABSTRACT_MENU_ENTRY(), DevicePathString(0), LoaderPath(0), DriveImage(), BadgeImage()
+    : REFIT_ABSTRACT_MENU_ENTRY(), DevicePathString(0), DriveImage(), BadgeImage()
     {}
-    virtual  XImage* getDriveImage()  { return &DriveImage; };
-    virtual  XImage* getBadgeImage()  { return &BadgeImage; };
+    virtual  XIcon* getDriveImage()  { return &DriveImage; };
+    virtual  XIcon* getBadgeImage()  { return &BadgeImage; };
 
 	  virtual REFIT_MENU_ITEM_ABSTRACT_ENTRY_LOADER* getREFIT_MENU_ITEM_ABSTRACT_ENTRY_LOADER() { return this; };
 	};
@@ -280,9 +284,11 @@ class REFIT_ABSTRACT_MENU_ENTRY
 		class REFIT_MENU_ENTRY_LOADER_TOOL : public REFIT_MENU_ITEM_ABSTRACT_ENTRY_LOADER
 		{
 		  public:
-			UINT8 NoMemset;
+			UINT8             NoMemset; //HACK - some non zero value
 			UINT16            Flags;
 			EFI_DEVICE_PATH  *DevicePath;
+      
+      void              StartTool();
 
 			REFIT_MENU_ENTRY_LOADER_TOOL() : REFIT_MENU_ITEM_ABSTRACT_ENTRY_LOADER(), NoMemset(1), Flags(0), DevicePath(0) {};
 
@@ -326,6 +332,8 @@ class REFIT_ABSTRACT_MENU_ENTRY
 			{
 			  public:
 				LEGACY_ENTRY() : REFIT_MENU_ITEM_BOOTNUM() {};
+        
+        void StartLegacy();
 
 				virtual LEGACY_ENTRY* getLEGACY_ENTRY() { return this; };
 			};
@@ -350,14 +358,116 @@ class REFIT_ABSTRACT_MENU_ENTRY
 				XImage            CustomLogo;
 				KERNEL_AND_KEXT_PATCHES *KernelAndKextPatches;
 				CONST CHAR16            *Settings;
+        UINT8             *KernelData;
+        UINT32            AddrVtable;
+        UINT32            SizeVtable;
+        UINT32            NamesTable;
+        INT32             SegVAddr;
+        INT32             shift;
+        BOOLEAN           PatcherInited;
+        BOOLEAN           gSNBEAICPUFixRequire; // SandyBridge-E AppleIntelCpuPowerManagement patch require or not
+        BOOLEAN           gBDWEIOPCIFixRequire; // Broadwell-E IOPCIFamily fix require or not
+        BOOLEAN           isKernelcache;
+        BOOLEAN           is64BitKernel;
+        UINT32            KernelSlide;
+        // notes:
+        // - 64bit segCmd64->vmaddr is 0xffffff80xxxxxxxx and we are taking
+        //   only lower 32bit part into PrelinkTextAddr
+        // - PrelinkTextAddr is segCmd64->vmaddr + KernelRelocBase
+        UINT32            PrelinkTextLoadCmdAddr;
+        UINT32            PrelinkTextAddr;
+        UINT32            PrelinkTextSize;
+        
+        // notes:
+        // - 64bit sect->addr is 0xffffff80xxxxxxxx and we are taking
+        //   only lower 32bit part into PrelinkInfoAddr
+        // - PrelinkInfoAddr is sect->addr + KernelRelocBase
+        UINT32            PrelinkInfoLoadCmdAddr;
+        UINT32            PrelinkInfoAddr;
+        UINT32            PrelinkInfoSize;
+        EFI_PHYSICAL_ADDRESS    KernelRelocBase;
+        BootArgs1         *bootArgs1;
+        BootArgs2         *bootArgs2;
+        CHAR8             *dtRoot;
+        UINT32            *dtLength;
+        
 
 				LOADER_ENTRY()
 						: REFIT_MENU_ITEM_BOOTNUM(), VolName(0), DevicePath(0), Flags(0), LoaderType(0), OSVersion(0), BuildVersion(0),
               BootBgColor({0,0,0,0}),
-        CustomBoot(0), KernelAndKextPatches(0), Settings(0)
+              CustomBoot(0), KernelAndKextPatches(0), Settings(0), KernelData(0),
+              AddrVtable(0), SizeVtable(0), NamesTable(0), shift(0),
+              PatcherInited(false), gSNBEAICPUFixRequire(false), gBDWEIOPCIFixRequire(false), isKernelcache(false), is64BitKernel(false),
+              KernelSlide(0), PrelinkTextLoadCmdAddr(0), PrelinkTextAddr(0), PrelinkTextSize(0),
+              PrelinkInfoLoadCmdAddr(0), PrelinkInfoAddr(0), PrelinkInfoSize(0),
+              KernelRelocBase(0), bootArgs1(0), bootArgs2(0), dtRoot(0), dtLength(0)
 						{};
+        
+        void          SetKernelRelocBase();
+        void          FindBootArgs();
+        EFI_STATUS    getVTable();
+        void          Get_PreLink();
+        UINTN         searchProc(const char *procedure);
+        UINTN         searchProcInDriver(UINT8 * driver, UINT32 driverLen, const char *procedure);
+        void          KernelAndKextsPatcherStart();
+        void          KernelAndKextPatcherInit();
+        BOOLEAN       KernelUserPatch();
+        BOOLEAN       KernelPatchPm();
+        BOOLEAN       KernelLapicPatch_32();
+        BOOLEAN       KernelLapicPatch_64();
+        BOOLEAN       BooterPatch(IN UINT8 *BooterData, IN UINT64 BooterSize);
+        void EFIAPI   KernelBooterExtensionsPatch();
+        BOOLEAN       KernelPanicNoKextDump();
+        void          KernelCPUIDPatch();
+        BOOLEAN       PatchCPUID(const UINT8* Location, INT32 LenLoc,
+                                 const UINT8* Search4, const UINT8* Search10, const UINT8* ReplaceModel,
+                                 const UINT8* ReplaceExt, INT32 Len);
+        void          KernelPatcher_32();
+ //       void          KernelPatcher_64();
+        void          FilterKernelPatches();
+        void          FilterKextPatches();
+        void          FilterBootPatches();
+        void          applyKernPatch(const UINT8 *find, UINTN size, const UINT8 *repl, const CHAR8 *comment);
+        
+        EFI_STATUS    SetFSInjection();
+        EFI_STATUS    InjectKexts(IN UINT32 deviceTreeP, IN UINT32 *deviceTreeLength);
+        EFI_STATUS    LoadKexts();
+        int           is_mkext_v1(UINT8* drvPtr);
+        void          patch_mkext_v1(UINT8 *drvPtr);
+ 
+        EFI_STATUS LoadKext(IN EFI_FILE *RootDir, IN CHAR16 *FileName, IN cpu_type_t archCpuType, IN OUT void *kext);
+        EFI_STATUS AddKext(IN EFI_FILE *RootDir, IN CHAR16 *FileName, IN cpu_type_t archCpuType);
+        void      LoadPlugInKexts(IN EFI_FILE *RootDir, IN CHAR16 *DirName, IN cpu_type_t archCpuType, IN BOOLEAN Force);
+        void      AddKexts(CONST CHAR16 *SrcDir, CONST CHAR16 *Path, cpu_type_t archCpuType);
+        void      KextPatcherRegisterKexts(void *FSInject, void *ForceLoadKexts);
+        void      KextPatcherStart();
+        void      PatchPrelinkedKexts();
+        void      PatchLoadedKexts();
+        void      PatchKext(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize);
+        void      AnyKextPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize, INT32 N);
+        void      ATIConnectorsPatchInit();
+        void      ATIConnectorsPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize);
+        void      ATIConnectorsPatchRegisterKexts(void *FSInject_v, void *ForceLoadKexts_v);
+        void      AppleIntelCPUPMPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize);
+        void      AppleRTCPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize);
+        void      CheckForFakeSMC(CHAR8 *InfoPlist);
+        void      DellSMBIOSPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize);
+        void      SNBE_AICPUPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize);
+        void      BDWE_IOPCIPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize);
+        BOOLEAN   SandyBridgeEPM();
+        BOOLEAN   HaswellEXCPM();
+        BOOLEAN   HaswellLowEndXCPM();
+        BOOLEAN   BroadwellEPM();
+        BOOLEAN   KernelIvyBridgeXCPM();
+        BOOLEAN   KernelIvyE5XCPM();
+        void      EightApplePatch(UINT8 *Driver, UINT32 DriverSize);
+        
+        void Stall(int Pause) { if ((KernelAndKextPatches != NULL) && KernelAndKextPatches->KPDebug) { gBS->Stall(Pause); } };
+        void StartLoader();
+        void AddDefaultMenu();
 				LOADER_ENTRY* getPartiallyDuplicatedEntry() const;
 				virtual LOADER_ENTRY* getLOADER_ENTRY() { return this; };
+        LOADER_ENTRY* SubMenuKextInjectMgmt();
 			} ;
 
 

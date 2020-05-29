@@ -54,11 +54,11 @@
 
 extern CONST CHAR8* IconsNames[];
 
-const XImage& ScanVolumeDefaultIcon(REFIT_VOLUME *Volume, IN UINT8 OSType, IN EFI_DEVICE_PATH_PROTOCOL *DevicePath)
+const XIcon& ScanVolumeDefaultIcon(REFIT_VOLUME *Volume, IN UINT8 OSType, IN EFI_DEVICE_PATH_PROTOCOL *DevicePath)
 
 {
   UINTN IconNum = 0;
-  const XImage* IconX;
+  const XIcon* IconX;
   // default volume icon based on disk kind
   switch (Volume->DiskKind) {
     case DISK_KIND_INTERNAL:
@@ -70,7 +70,7 @@ const XImage& ScanVolumeDefaultIcon(REFIT_VOLUME *Volume, IN UINT8 OSType, IN EF
             DevicePath = NextDevicePathNode(DevicePath);
           }
           if (DevicePathType(DevicePath) == MEDIA_DEVICE_PATH && DevicePathSubType (DevicePath) == MEDIA_VENDOR_DP) {
-            if (StriCmp(GuidLEToStr((EFI_GUID *)((UINT8 *)DevicePath+0x04)),GuidLEToStr(&APFSSignature)) == 0 ) {
+            if ( GuidLEToStr((EFI_GUID *)((UINT8 *)DevicePath+0x04)).equalIC(GuidLEToStr(&APFSSignature)) ) {
               IconNum = BUILTIN_ICON_VOL_INTERNAL_APFS;
             }
           } else {
@@ -111,7 +111,7 @@ const XImage& ScanVolumeDefaultIcon(REFIT_VOLUME *Volume, IN UINT8 OSType, IN EF
   }
 //  DBG("asked IconNum = %llu Volume->DiskKind=%d OSType=%d\n", IconNum, Volume->DiskKind, OSType);
   IconX = &ThemeX.GetIcon(IconNum); //asked IconNum = BUILTIN_ICON_VOL_INTERNAL_HFS, got day icon
-  if (IconX->isEmpty()) {
+  if (IconX->Image.isEmpty()) {
     DBG("asked Icon %s not found, took internal\n", IconsNames[IconNum]);
     IconX = &ThemeX.GetIcon(BUILTIN_ICON_VOL_INTERNAL); //including embedded which is really present
   }
@@ -119,82 +119,82 @@ const XImage& ScanVolumeDefaultIcon(REFIT_VOLUME *Volume, IN UINT8 OSType, IN EF
   return *IconX;
 }
 
-
-XString AddLoadOption(IN CONST XString& LoadOptions, IN CONST XString& LoadOption)
-{
-  // LoadOptions assumed out
-  // If either option strings are null nothing to do
-  if (LoadOptions.isEmpty()) //initially empty so return new option even if empty
-  {
-    // return LoadOption
-    return LoadOption;
-  }
-  // If there is no option or it is already present duplicate original
-  else {
-	  if ( LoadOptions.ExistIn(LoadOption) ) return LoadOptions; //good
-	  // Otherwise add option
-//	  return SPrintf("%s %s", LoadOptions.c_str(), LoadOption.c_str()); //LoadOptions + LoadOption
-    return LoadOptions + " "_XS + LoadOption; //why not?
-  }
-}
-
-XString RemoveLoadOption(IN const XString& LoadOptions, IN const XString& LoadOption)
-{
-//  CONST CHAR16 *Placement;
-//  CHAR16 *NewLoadOptions;
-//  UINTN   Length, Offset, OptionLength;
-
-  //DBG("LoadOptions: '%ls', remove LoadOption: '%ls'\n", LoadOptions, LoadOption);
-  // If there are no options then nothing to do
-  if (LoadOptions.isEmpty()) return ""_XS;
-  // If there is no option to remove then duplicate original
-  if (LoadOption.isEmpty()) return LoadOptions;
-  // If not present duplicate original
-  xsize Offset = LoadOptions.IdxOf(LoadOption);
-  if ( Offset == MAX_XSIZE ) return LoadOptions;
-
-  // Get placement of option in original options
-//  Offset = (Placement - LoadOptions);
-  xsize Length = LoadOptions.length();
-  xsize OptionLength = LoadOption.length();
-
-  // If this is just part of some larger option (contains non-space at the beginning or end)
-  if ((Offset > 0 && LoadOptions[Offset - 1] != ' ') ||
-      ((Offset + OptionLength) < Length && LoadOptions[Offset + OptionLength] != ' ')) {
-    return LoadOptions;
-  }
-
-  // Consume preceeding spaces
-  while (Offset > 0 && LoadOptions[Offset - 1] == ' ') {
-    OptionLength++;
-    Offset--;
-  }
-
-  // Consume following spaces
-  while (LoadOptions[Offset + OptionLength] == ' ') {
-   OptionLength++;
-  }
-
-  // If it's the whole string return NULL
-  if (OptionLength == Length) return ""_XS;
-
-  XString NewLoadOptions;
-  if (Offset == 0) {
-    // Simple case - we just need substring after OptionLength position
-    NewLoadOptions = LoadOptions.SubString(OptionLength, MAX_XSIZE);
-  } else {
-    // Copy preceeding substring
-	NewLoadOptions = LoadOptions.SubString(0, Offset);
-//    CopyMem(NewLoadOptions, LoadOptions, Offset * sizeof(CHAR16));
-    if ((Offset + OptionLength) < Length) {
-      // Copy following substring, but include one space also
-      OptionLength--;
-	  NewLoadOptions += LoadOptions.SubString(Offset + OptionLength, MAX_XSIZE);
-//      CopyMem(NewLoadOptions + Offset, LoadOptions + Offset + OptionLength, (Length - OptionLength - Offset) * sizeof(CHAR16));
-    }
-  }
-  return NewLoadOptions;
-}
+//
+//XString AddLoadOption(IN CONST XString& LoadOptions, IN CONST XString& LoadOption)
+//{
+//  // LoadOptions assumed out
+//  // If either option strings are null nothing to do
+//  if (LoadOptions.isEmpty()) //initially empty so return new option even if empty
+//  {
+//    // return LoadOption
+//    return LoadOption;
+//  }
+//  // If there is no option or it is already present duplicate original
+//  else {
+//	  if ( LoadOptions.contains(LoadOption) ) return LoadOptions; //good
+//	  // Otherwise add option
+////	  return SPrintf("%s %s", LoadOptions.c_str(), LoadOption.c_str()); //LoadOptions + LoadOption
+//    return LoadOptions + " "_XS8 + LoadOption; //why not?
+//  }
+//}
+//
+//XString RemoveLoadOption(IN const XString& LoadOptions, IN const XString& LoadOption)
+//{
+////  CONST CHAR16 *Placement;
+////  CHAR16 *NewLoadOptions;
+////  UINTN   Length, Offset, OptionLength;
+//
+//  //DBG("LoadOptions: '%ls', remove LoadOption: '%ls'\n", LoadOptions, LoadOption);
+//  // If there are no options then nothing to do
+//  if (LoadOptions.isEmpty()) return ""_XS8;
+//  // If there is no option to remove then duplicate original
+//  if (LoadOption.isEmpty()) return LoadOptions;
+//  // If not present duplicate original
+//  xsize Offset = LoadOptions.indexOf(LoadOption);
+//  if ( Offset == MAX_XSIZE ) return LoadOptions;
+//
+//  // Get placement of option in original options
+////  Offset = (Placement - LoadOptions);
+//  xsize Length = LoadOptions.length();
+//  xsize OptionLength = LoadOption.length();
+//
+//  // If this is just part of some larger option (contains non-space at the beginning or end)
+//  if ((Offset > 0 && LoadOptions[Offset - 1] != ' ') ||
+//      ((Offset + OptionLength) < Length && LoadOptions[Offset + OptionLength] != ' ')) {
+//    return LoadOptions;
+//  }
+//
+//  // Consume preceeding spaces
+//  while (Offset > 0 && LoadOptions[Offset - 1] == ' ') {
+//    OptionLength++;
+//    Offset--;
+//  }
+//
+//  // Consume following spaces
+//  while (LoadOptions[Offset + OptionLength] == ' ') {
+//   OptionLength++;
+//  }
+//
+//  // If it's the whole string return NULL
+//  if (OptionLength == Length) return ""_XS8;
+//
+//  XString NewLoadOptions;
+//  if (Offset == 0) {
+//    // Simple case - we just need substring after OptionLength position
+//    NewLoadOptions = LoadOptions.subString(OptionLength, MAX_XSIZE);
+//  } else {
+//    // Copy preceeding substring
+//	NewLoadOptions = LoadOptions.subString(0, Offset);
+////    CopyMem(NewLoadOptions, LoadOptions, Offset * sizeof(CHAR16));
+//    if ((Offset + OptionLength) < Length) {
+//      // Copy following substring, but include one space also
+//      OptionLength--;
+//	  NewLoadOptions += LoadOptions.subString(Offset + OptionLength, MAX_XSIZE);
+////      CopyMem(NewLoadOptions + Offset, LoadOptions + Offset + OptionLength, (Length - OptionLength - Offset) * sizeof(CHAR16));
+//    }
+//  }
+//  return NewLoadOptions;
+//}
 
 #define TO_LOWER(ch) (((ch >= L'A') && (ch <= L'Z')) ? ((ch - L'A') + L'a') : ch)
 INTN StrniCmp(IN CONST CHAR16 *Str1,
@@ -271,7 +271,7 @@ STATIC void CreateInfoLines(IN CONST XStringW& Message, OUT XStringWArray* Infor
   if (Message.isEmpty()) {
     return;
   }
-  Information->Empty();
+  Information->setEmpty();
   //TODO will fill later
 }
 
@@ -328,7 +328,7 @@ VOID AlertMessage(IN XStringW& Title, IN CONST XStringW& Message)
   CreateInfoLines(Message, &AlertMessageMenu.InfoLines);
   AlertMessageMenu.Title = Title;
   AlertMessageMenu.RunMenu(NULL);
-  AlertMessageMenu.InfoLines.Empty();
+  AlertMessageMenu.InfoLines.setEmpty();
 }
 
 #define TAG_YES 1
@@ -357,7 +357,7 @@ BOOLEAN YesNoMessage(IN XStringW& Title, IN CONST XStringW& Message)
       MenuExit = MENU_EXIT_ENTER;
     }
   } while (MenuExit != MENU_EXIT_ENTER);
-  YesNoMessageMenu.InfoLines.Empty();
+  YesNoMessageMenu.InfoLines.setEmpty();
   return Result;
 }
 // Ask user for file path from directory menu

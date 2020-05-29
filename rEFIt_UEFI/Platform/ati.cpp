@@ -317,7 +317,7 @@ radeon_card_info_t radeon_cards[] = {
   { 0x67CA,  CHIP_FAMILY_ELLESMERE, "AMD Radeon Polaris 10",    kNull },
   { 0x67CC,  CHIP_FAMILY_ELLESMERE, "AMD Radeon Polaris 10",    kNull },
   { 0x67CF,  CHIP_FAMILY_ELLESMERE, "AMD Radeon Polaris 10",    kNull },
-  { 0x67DF,  CHIP_FAMILY_ELLESMERE, "AMD Radeon RX 480",         kBaladi },
+  { 0x67DF,  CHIP_FAMILY_ELLESMERE, "AMD Radeon RX 480/570/580",         kBaladi },
 
   // Polaris 11
   { 0x67E0,  CHIP_FAMILY_BAFFIN, "AMD Radeon RX 460",             kAcre },
@@ -1563,9 +1563,10 @@ VOID devprop_add_list(AtiDevProp devprop_list[], CHAR8 *OSVersion)
         if (devprop_list[i].all_ports) {
           for (pnum = 1; pnum < card->ports; pnum++) {
             if (devprop_list[i].get_value(val, pnum, Sier)) {
-              char* newname = (char*)AllocatePool(AsciiStrLen(devprop_list[i].name)+1);
-              AsciiStrCpy(newname, devprop_list[i].name);
-              newname[1] = (CHAR8)(0x30 + pnum); // convert to ascii
+              INTN size = AsciiStrLen(devprop_list[i].name) + 1;
+              char* newname = (char*)AllocatePool(size);
+              AsciiStrCpyS(newname, size, devprop_list[i].name);
+              newname[1] = (CHAR8)(0x30 + pnum); // convert to ascii for number 0..9
               devprop_add_value(card->device, newname, val->data, val->size);
               free_val(val);
               FreePool((VOID*)newname);
@@ -1982,8 +1983,8 @@ static BOOLEAN init_card(pci_dt_t *pci_dev)
   card->io    = (UINT8 *)(UINTN)(pci_config_read32(pci_dev, PCI_BASE_ADDRESS_4) & ~0x03);
   Reg5 = (UINTN)(pci_config_read32(pci_dev, PCI_BASE_ADDRESS_5) & ~0x0f);
   ExpansionRom = pci_config_read32(pci_dev, PCI_EXPANSION_ROM_BASE); //0x30 as Chimera
-	DBG("Framebuffer @0x%8s  MMIO @0x%8s I/O Port @0x%8s ROM Addr @0x%08llX\n",
-      card->fb, card->mmio, card->io, ExpansionRom);
+	DBG("Framebuffer @0x%8llx  MMIO @0x%8llx I/O Port @0x%8llx ROM Addr @0x%08llX\n",
+      (UINTN)card->fb, (UINTN)card->mmio, (UINTN)card->io, ExpansionRom);
 	DBG("PCI region 1 = 0x%8llX, region3 = 0x%8llX, region5 = 0x%8llX\n", Reg1, Reg3, Reg5);
   if (card->info->chip_family >= CHIP_FAMILY_HAINAN && Reg5 != 0) {
     card->mmio = (UINT8 *)Reg5;

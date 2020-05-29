@@ -12,9 +12,8 @@
 extern "C" {
 #include <Protocol/GraphicsOutput.h>
 }
-#include "../cpp_foundation/XToolsCommon.h"
 #include "../cpp_foundation/XArray.h"
-#include "../cpp_foundation/XStringW.h"
+#include "../cpp_foundation/XString.h"
 #include "../libeg/libeg.h"
 #include "XImage.h"
 #include "XTheme.h"
@@ -27,7 +26,7 @@ protected:
   INTN      Id; //ScreenID, enumeration value but keep it to be int for extensibility
 public:
   //I see no reason to make they protected
-  bool      RunOnce;
+  BOOLEAN   RunOnce;
   INTN      NumFrames; //set by user in Theme.plist or in Theme.svg
   INTN      FrameTime; //usually 50, 100, 200 ms
   INTN      FilmX, FilmY;  //relative
@@ -35,26 +34,29 @@ public:
   INTN      ScreenEdgeVertical;
   INTN      NudgeX, NudgeY;
   XStringW  Path; //user defined name for folder and files Path/Path_002.png etc
+  BOOLEAN   AnimeRun;
+  UINT64    LastDraw;
 
 protected:
   XObjArray<IndexedImage> Frames; //Frames can be not sorted
-  INTN LastIndex; // it is not Frames.size(), it is last index inclusive, so frames 0,1,2,5,8 be LastIndex = 8
-  INTN CurrentFrame; // must be unique for each film
+  INTN      LastIndex; // it is not Frames.size(), it is last index inclusive, so frames 0,1,2,5,8 be LastIndex = 8
+  INTN      CurrentFrame; // must be unique for each film
 
 public:
   EG_RECT FilmPlace;  // Screen has several Films each in own place
 
 public:
-  FILM() {}
-  FILM(INTN Id) : Id(Id), RunOnce(false), NumFrames(0)
-   {}
+  FILM() : AnimeRun(0), LastDraw(0), CurrentFrame(0)
+  {}
+  FILM(INTN Id) : Id(Id), RunOnce(FALSE), NumFrames(0), AnimeRun(0), LastDraw(0), CurrentFrame(0)
+  {}
   ~FILM() {}
 
   INTN GetIndex() { return  Id; }
   void SetIndex(INTN Index) { Id = Index; }
 
   const XImage& GetImage(INTN Index) const;
-  const XImage& GetImage() const;
+  const XImage& GetImage(bool *free = nullptr) const;
   void AddFrame(XImage* Frame, INTN Index); //IndexedImage will be created
   size_t Size() { return Frames.size(); }
   INTN LastFrameID() { return LastIndex; }

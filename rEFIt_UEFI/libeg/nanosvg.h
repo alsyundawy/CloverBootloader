@@ -52,6 +52,8 @@ extern "C" {
 #define NANOSVG_ALL_COLOR_KEYWORDS 1
 #define NSVG_RGBA(r, g, b, a) (((unsigned int)b) | ((unsigned int)g << 8) | ((unsigned int)r << 16) | ((unsigned int)a << 24))
 
+#define kMaxIDLength 64
+#define kMaxTextLength 256
 
 enum NSVGpaintType {
   NSVG_PAINT_NONE = 0,
@@ -91,7 +93,7 @@ enum NSVGflags {
 };
 */
 typedef struct NSVGgradientLink {
-  char id[64];
+  char id[kMaxIDLength];
   float xform[6];
 } NSVGgradientLink;
 
@@ -139,8 +141,6 @@ typedef struct NSVGclip
   char pad[7];
 } NSVGclip;
 
-#define kMaxIDLength 64
-#define kMaxTextLength 256
 
 typedef struct NSVGshape NSVGshape;
 
@@ -194,7 +194,7 @@ typedef struct NSVGshape
 
 typedef struct NSVGclipPath
 {
-  char id[64];        // Unique id of this clip path (from SVG).
+  char id[kMaxIDLength];        // Unique id of this clip path (from SVG).
   NSVGclipPathIndex index;  // Unique internal index of this clip path.
   NSVGshape* shapes;      // Linked list of shapes in this clip path.
   NSVGgroup* group;      // Pointer to parent group or NULL
@@ -206,6 +206,7 @@ typedef struct NSVGimage
   float width;        // Width of the image.
   float height;        // Height of the image.
   float realBounds[4];
+  float scale;
   NSVGshape* shapes;      // Linked list of shapes in the image.
   NSVGgroup* groups;      // Linked list of all groups in the image
   NSVGpath* paths;        // Linked list of paths in the image.
@@ -447,6 +448,7 @@ typedef struct NSVGparser
 // Parses SVG file from a null terminated string, returns SVG image as paths.
 // Important note: changes the string.
 NSVGparser* nsvgParse(char* input, /* const char* units,*/ float dpi, float opacity);
+NSVGparser* nsvg__createParser();
 
 // Deletes list of paths.
 void nsvgDelete(NSVGimage* image);
@@ -457,7 +459,7 @@ void nsvg__xformSetScale(float* t, float sx, float sy);
 void nsvg__xformPremultiply(float* t, float* s);
 void nsvg__xformMultiply(float* t, float* s);
 void nsvg__deleteFont(NSVGfont* font);
-void nsvg__imageBounds(NSVGparser* p, float* bounds);
+void nsvg__imageBounds(NSVGimage* image, float* bounds);
 float addLetter(NSVGparser* p, CHAR16 letter, float x, float y, float scale, UINT32 color);
 VOID RenderSVGfont(NSVGfont  *fontSVG, UINT32 color);
 
@@ -484,7 +486,7 @@ void nsvgRasterize(NSVGrasterizer* r,
 
 // Deletes rasterizer context.
 void nsvgDeleteRasterizer(NSVGrasterizer*);
-NSVGparser* nsvg__createParser();
+
 
 #define NSVG__SUBSAMPLES  5
 #define NSVG__FIXSHIFT    14

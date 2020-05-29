@@ -414,7 +414,7 @@ void REFIT_MENU_SCREEN::GetAnime()
   FilmC = ThemeX.Cinema.GetFilm(ID);
 //  DBG("ScreenID=%lld Film found=%d\n", ID, (FilmC != nullptr)?1:0);
   if (FilmC != nullptr) {
-    AnimeRun = true;
+    FilmC->AnimeRun = true;
   }
 }
 
@@ -424,8 +424,8 @@ VOID REFIT_MENU_SCREEN::InitAnime()
     FilmC = nullptr;
   }
   if (FilmC == nullptr) {
-    DBG("Screen %lld inited without anime\n", ID);
-    AnimeRun = FALSE;
+//    DBG("Screen %lld inited without anime\n", ID);
+//    FilmC->AnimeRun = FALSE;
     return;
   }
 //  DBG("=== Debug Film ===\n");
@@ -437,14 +437,14 @@ VOID REFIT_MENU_SCREEN::InitAnime()
 //  DBG("Path=%ls\n", FilmC->Path.wc_str());
 //  DBG("LastFrame=%lld\n\n", FilmC->LastFrameID());
 
+  XImage FirstFrame = FilmC->GetImage(FilmC->LastFrameID()); //can not be absent
+  INTN CWidth = FirstFrame.GetWidth();
+  INTN CHeight = FirstFrame.GetHeight();
   if ((FilmC->FilmX >=0) && (FilmC->FilmX <=100) &&
       (FilmC->FilmY >=0) && (FilmC->FilmY <=100)) { //default is 0xFFFF
     // Check if screen size being used is different from theme origination size.
     // If yes, then recalculate the animation placement % value.
     // This is necessary because screen can be a different size, but anim is not scaled.
-    XImage FirstFrame = FilmC->GetImage(FilmC->LastFrameID()); //can not be absent
-    INTN CWidth = FirstFrame.GetWidth();
-    INTN CHeight = FirstFrame.GetHeight();
     FilmC->FilmPlace.XPos = HybridRepositioning(FilmC->ScreenEdgeHorizontal, FilmC->FilmX, CWidth,  UGAWidth,  ThemeX.ThemeDesignWidth );
     FilmC->FilmPlace.YPos = HybridRepositioning(FilmC->ScreenEdgeVertical,   FilmC->FilmY, CHeight, UGAHeight, ThemeX.ThemeDesignHeight);
 
@@ -459,12 +459,17 @@ VOID REFIT_MENU_SCREEN::InitAnime()
     // We are here if there is no anime, or if we use oldstyle placement values
     // For both these cases, FilmPlace will be set after banner/menutitle positions are known
     FilmC->FilmPlace = ThemeX.BannerPlace;
+    if (CWidth > 0 && CHeight > 0) {
+      // Retained for legacy themes without new anim placement options.
+      FilmC->FilmPlace.XPos = ((INTN)FilmC->FilmPlace.XPos * 2 > CWidth  - (INTN)FilmC->FilmPlace.Width ) ? (UINTN)((INTN)FilmC->FilmPlace.XPos + ((INTN)FilmC->FilmPlace.Width  - CWidth ) / 2) : 0;
+      FilmC->FilmPlace.YPos = ((INTN)FilmC->FilmPlace.YPos * 2 > CHeight - (INTN)FilmC->FilmPlace.Height) ? (UINTN)((INTN)FilmC->FilmPlace.YPos + ((INTN)FilmC->FilmPlace.Height - CHeight) / 2) : 0;
+    }
   }
   if (FilmC->NumFrames != 0) {
     DBG(" Anime seems OK, init it\n");
-    AnimeRun = TRUE;
+    FilmC->AnimeRun = TRUE;
     FilmC->Reset();
-    LastDraw = 0;
+    FilmC->LastDraw = 0;
   }
 }
 

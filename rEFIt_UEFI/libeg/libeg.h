@@ -277,6 +277,11 @@ struct KEXT_PATCH
   UINT8       *Patch;
   UINT8       *MaskFind;
   UINT8       *MaskReplace;
+  UINT8       *StartPattern;
+  UINT8       *StartMask;
+  INTN        StartPatternLen;
+  INTN        SearchLen;
+  CHAR8       *ProcedureName; //procedure len will be StartPatternLen
   CHAR8       *MatchOS;
   CHAR8       *MatchBuild;
   INPUT_ITEM  MenuItem;
@@ -289,6 +294,11 @@ typedef struct {
   UINT8       *Patch;
   UINT8       *MaskFind;
   UINT8       *MaskReplace;
+  UINT8       *StartPattern;
+  UINT8       *StartMask;
+  INTN        StartPatternLen;
+  INTN        SearchLen;
+  CHAR8       *ProcedureName;
   INTN        Count;
   CHAR8       *MatchOS;
   CHAR8       *MatchBuild;
@@ -298,7 +308,7 @@ typedef struct {
 typedef struct KERNEL_AND_KEXT_PATCHES
 {
   BOOLEAN KPDebug;
-  BOOLEAN KPKernelCpu;
+//  BOOLEAN KPKernelCpu;
   BOOLEAN KPKernelLapic;
   BOOLEAN KPKernelXCPM;
   BOOLEAN KPKernelPm;
@@ -306,7 +316,8 @@ typedef struct KERNEL_AND_KEXT_PATCHES
   BOOLEAN KPAppleRTC;
   BOOLEAN KPDELLSMBIOS;  // Dell SMBIOS patch
   BOOLEAN KPPanicNoKextDump;
-  UINT8   pad[3];
+  BOOLEAN EightApple;
+  UINT8   pad[7];
   UINT32  FakeCPUID;
   //  UINT32  align0;
   CHAR8   *KPATIConnectorsController;
@@ -428,7 +439,7 @@ VOID    egDumpGOPVideoModes(VOID);
 EFI_STATUS egSetMode(INT32 Next);
 
 VOID    egGetScreenSize(OUT INTN *ScreenWidth, OUT INTN *ScreenHeight);
-XString egScreenDescription(VOID);
+XString8 egScreenDescription(VOID);
 BOOLEAN egHasGraphicsMode(VOID);
 BOOLEAN egIsGraphicsModeEnabled(VOID);
 VOID    egSetGraphicsModeEnabled(IN BOOLEAN Enable);

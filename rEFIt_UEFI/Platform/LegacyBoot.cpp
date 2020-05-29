@@ -189,7 +189,7 @@ EFI_STATUS BiosReadSectorsFromDrive(UINT8 DriveNum, UINT64 Lba, UINTN NumSectors
 	Dap->lba = Lba;
 	
 	// set registers
-	SetMem (&Regs, sizeof (Regs), 0);
+	SetMem(&Regs, sizeof (Regs), 0);
   
 	// first reset disk controller as the controller seems to be in an undefined state sometimes
 	DBG("Reset disk controller: %hhX\n", DriveNum);
@@ -431,11 +431,11 @@ EFI_STATUS bootElTorito(REFIT_VOLUME*	volume)
 */
 	
 	Status = gBS->AllocatePool (EfiBootServicesData,sizeof(THUNK_CONTEXT),(VOID **)&mThunkContext);
-	if (EFI_ERROR (Status)) {
+	if (EFI_ERROR(Status)) {
 		return Status;
 	}
 	Status = InitializeBiosIntCaller(); //mThunkContext);
-	if (EFI_ERROR (Status)) {
+	if (EFI_ERROR(Status)) {
 		return Status;
 	}
   //	InitializeInterruptRedirection(); //gLegacy8259);
@@ -470,7 +470,7 @@ EFI_STATUS bootMBR(REFIT_VOLUME* volume)
     UINT8                       BiosDriveNum;
     //UINTN         LogSize;
     
-	SetMem (&Regs, sizeof (Regs), 0);
+	SetMem(&Regs, sizeof (Regs), 0);
 	addrEnablePaging(0);
 	
 	Status = gBS->LocateProtocol(&gEfiLegacy8259ProtocolGuid, NULL, (VOID**)&gLegacy8259);
@@ -484,14 +484,14 @@ EFI_STATUS bootMBR(REFIT_VOLUME* volume)
 	}
 	
 	Status = gBS->AllocatePool (EfiBootServicesData,sizeof(THUNK_CONTEXT),(VOID **)&mThunkContext);
-	if (EFI_ERROR (Status)) {
+	if (EFI_ERROR(Status)) {
 		return Status;
 	}
     
     DBG("boot from partition %ls\n", FileDevicePathToStr(volume->DevicePath));
     
 	Status = InitializeBiosIntCaller(); //mThunkContext);
-	if (EFI_ERROR (Status)) {
+	if (EFI_ERROR(Status)) {
 		return Status;
 	}
 	//InitializeInterruptRedirection(); //gLegacy8259);
@@ -616,7 +616,7 @@ EFI_STATUS bootPBRtest(REFIT_VOLUME* volume)
   EFI_ACPI_4_0_FIRMWARE_ACPI_CONTROL_STRUCTURE	*Facs = NULL;
 	
 	IA32_REGISTER_SET   Regs;
-	SetMem (&Regs, sizeof (Regs), 0);
+	SetMem(&Regs, sizeof (Regs), 0);
 	addrEnablePaging(0);
 	//
 	// find the partition device path node
@@ -646,11 +646,11 @@ EFI_STATUS bootPBRtest(REFIT_VOLUME* volume)
   DBG("gEfiLegacy8259ProtocolGuid found\n");
 	
 	Status = gBS->AllocatePool (EfiBootServicesData,sizeof(THUNK_CONTEXT),(VOID **)&mThunkContext);
-	if (EFI_ERROR (Status)) {
+	if (EFI_ERROR(Status)) {
 		return Status;
 	}
 	Status = InitializeBiosIntCaller(); //mThunkContext);
-	if (EFI_ERROR (Status)) {
+	if (EFI_ERROR(Status)) {
 		return Status;
 	}
 
@@ -891,12 +891,12 @@ EFI_STATUS bootPBR(REFIT_VOLUME* volume, BOOLEAN SataReset)
   //
   if (mThunkContext == NULL) {
     Status = gBS->AllocatePool (EfiBootServicesData, sizeof(THUNK_CONTEXT), (VOID **)&mThunkContext);
-    if (EFI_ERROR (Status)) {
+    if (EFI_ERROR(Status)) {
       return Status;
     }
     DBG("Thunk allocated\n");
     Status = InitializeBiosIntCaller(); //mThunkContext);
-    if (EFI_ERROR (Status)) {
+    if (EFI_ERROR(Status)) {
       return Status;
     }
   }
@@ -940,7 +940,7 @@ EFI_STATUS bootPBR(REFIT_VOLUME* volume, BOOLEAN SataReset)
   // prepare 16bit regs:
   // DX = BIOS drive num
   //
-  SetMem (&Regs, sizeof (Regs), 0);
+  SetMem(&Regs, sizeof (Regs), 0);
   Regs.X.DX = BiosDriveNum;
 
   // set up SI to partition table entry, some boot1 boot code (such a boot1f32 and boot1h) depend on it
@@ -1000,9 +1000,9 @@ static VOID PatchBbsTable(EFI_LEGACY_BIOS_PROTOCOL *LegacyBios, UINT16 BootEntry
 		&LocalBbsTable
 		);
 
-	DBG ("BBS Table of size %d, patching priorities Pold->Pnew:\n", BbsCount);
-	DBG (" NO: BBS# Pold Pnew bb/dd/ff cl/sc Type Stat segm:offs\n");
-	DBG (" =====================================================\n");
+	DBG("BBS Table of size %d, patching priorities Pold->Pnew:\n", BbsCount);
+	DBG(" NO: BBS# Pold Pnew bb/dd/ff cl/sc Type Stat segm:offs\n");
+	DBG(" =====================================================\n");
 
 	for (Idx = 0; Idx < BbsCount; Idx++) {
 		if ((LocalBbsTable[Idx].BootPriority == BBS_IGNORE_ENTRY) ||
@@ -1019,7 +1019,7 @@ static VOID PatchBbsTable(EFI_LEGACY_BIOS_PROTOCOL *LegacyBios, UINT16 BootEntry
 			LocalBbsTable[Idx].BootPriority = Priority++;
 		}
 
-		DBG (" %02llu: 0x%02llX %04llX %04llX %02llX/%02llX/%02llX %02llX/%02llX %04llX %04llX %04llX:%04llX\n",
+		DBG(" %02llu: 0x%02llX %04llX %04llX %02llX/%02llX/%02llX %02llX/%02llX %04llX %04llX %04llX:%04llX\n",
 		    (UINTN) IdxCount,
 		    (UINTN) Idx,
 		    (UINTN) OldPriority,
@@ -1103,7 +1103,7 @@ VOID DumpBiosMemoryMap()
   IA32_REGISTER_SET           Regs;
   UINT8*                      BiosMap = (UINT8*)(UINTN)0x7C00;
   
-	SetMem (&Regs, sizeof (Regs), 0);
+	SetMem(&Regs, sizeof (Regs), 0);
 	addrEnablePaging(0);
   
   Status = gBS->LocateProtocol(&gEfiLegacy8259ProtocolGuid, NULL, (VOID**)&gLegacy8259);
@@ -1113,11 +1113,11 @@ VOID DumpBiosMemoryMap()
   DBG("gEfiLegacy8259ProtocolGuid found\n");
 	
 	Status = gBS->AllocatePool (EfiBootServicesData,sizeof(THUNK_CONTEXT),(VOID **)&mThunkContext);
-	if (EFI_ERROR (Status)) {
+	if (EFI_ERROR(Status)) {
 		return;
 	}
 	Status = InitializeBiosIntCaller(); //mThunkContext);
-	if (EFI_ERROR (Status)) {
+	if (EFI_ERROR(Status)) {
 		return;
 	}
   

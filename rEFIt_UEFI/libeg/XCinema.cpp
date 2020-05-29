@@ -31,14 +31,14 @@
 
 VOID REFIT_MENU_SCREEN::UpdateFilm()
 {
-  if (FilmC == nullptr || !AnimeRun) {
-//    DBG("no anime -> run=%d\n", AnimeRun?1:0);
+  if (FilmC == nullptr || !FilmC->AnimeRun) {
+//    DBG("no anime -> run=%d\n", FilmC->AnimeRun?1:0);
     return;
   }
   // here we propose each screen has own link to a Film
   INT64      Now = AsmReadTsc();
 
-  if (LastDraw == 0) {
+  if (FilmC->LastDraw == 0) {
     DBG("=== Update Film ===\n");
     DBG("FilmX=%lld\n", FilmC->FilmX);
     DBG("ID=%lld\n", FilmC->GetIndex());
@@ -47,10 +47,9 @@ VOID REFIT_MENU_SCREEN::UpdateFilm()
     DBG("FrameTime=%lld\n", FilmC->FrameTime);
     DBG("Path=%ls\n", FilmC->Path.wc_str());
     DBG("LastFrame=%lld\n\n", FilmC->LastFrameID());
-
   }
 
-  if (TimeDiff(LastDraw, Now) < (UINTN)FilmC->FrameTime) return;
+  if (TimeDiff(FilmC->LastDraw, Now) < (UINTN)FilmC->FrameTime) return;
 
   XImage Frame = FilmC->GetImage(); //take current image
   if (!Frame.isEmpty()) {
@@ -58,9 +57,9 @@ VOID REFIT_MENU_SCREEN::UpdateFilm()
   }
   FilmC->Advance(); //next frame no matter if previous was not found
   if (FilmC->Finished()) { //first loop finished
-    AnimeRun = !FilmC->RunOnce; //will stop anime if it set as RunOnce
+    FilmC->AnimeRun = !FilmC->RunOnce; //will stop anime if it set as RunOnce
   }
-  LastDraw = Now;
+  FilmC->LastDraw = Now;
 }
 
 FILM* XCinema::GetFilm(INTN Id)
@@ -84,7 +83,7 @@ void XCinema::AddFilm(FILM* NewFilm)
 static XImage NullImage;
 const XImage& FILM::GetImage(INTN Index) const
 {
-  DBG("ask for frame #%lld from total of %lld\n", Index, Frames.size());
+  DBG("ask for frame #%lld from total of %zu\n", Index, Frames.size());
   for (size_t i = 0; i < Frames.size(); ++i) {
     if (Frames[i].getIndex() == Index) {
       DBG("...found\n");
@@ -95,13 +94,24 @@ const XImage& FILM::GetImage(INTN Index) const
   return NullImage;
 }
 
-const XImage& FILM::GetImage() const
+const XImage& FILM::GetImage(bool *free) const
 {
+  /*
+   * for SVG anime we have to generate new XImage using CurrentFrame as an argument
+    product(IconToAnime.ImageSVG, CurrentFrame, method); -- ImageSVG will be changed?
+   or
+    XImage *frame = IconToAnime.GetBest(!Daylight, free, CurrentFrame, method);
+    
+   return frame;
+   *
+   */
   for (size_t i = 0; i < Frames.size(); ++i) {
     if (Frames[i].getIndex() == CurrentFrame) {
+      if (free) *free = false;
       return Frames[i].getImage();
     }
   }
+  if (free) *free = false;
   return NullImage;
 }
 
@@ -129,7 +139,7 @@ void FILM::GetFrames(XTheme& TheTheme /*, const XStringW& Path*/) // Path alread
     } else {
       XStringW Name = SWPrintf("%ls\\%ls_%03lld.png", Path.wc_str(), Path.wc_str(), Index);
  //     DBG("try to load %ls\n", Name.wc_str()); //fine
-      if (FileExists(ThemeDir, Name.wc_str())) {
+      if (FileExists(ThemeDir, Name)) {
         Status = NewImage.LoadXImage(ThemeDir, Name);
       }
 //      DBG("  read status=%s\n", strerror(Status));

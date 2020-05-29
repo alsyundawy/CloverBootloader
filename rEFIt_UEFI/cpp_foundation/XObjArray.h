@@ -11,11 +11,12 @@
 #if !defined(__XOBJARRAY_H__)
 #define __XOBJARRAY_H__
 
+#include <XToolsConf.h>
 #include "XToolsCommon.h"
 
 
 #if 1
-#define XObjArray_DBG(...) DebugLog(2, __VA_ARGS__)
+#define XObjArray_DBG(...) printf__VA_ARGS__)
 #else
 #define XObjArray_DBG(...)
 #endif
@@ -35,8 +36,8 @@ class XObjArrayNC
 {
   public:
 	XObjArrayEntry<TYPE> *_Data;
-	xsize _Len;
-	xsize m_allocatedSize;
+	size_t _Len;
+	size_t m_allocatedSize;
 
   public:
 	void Init();
@@ -44,8 +45,10 @@ class XObjArrayNC
 	virtual ~XObjArrayNC();
 
   protected:
-	XObjArrayNC(const XObjArrayNC<TYPE> &anObjArrayNC) { (void)anObjArrayNC; DebugLog(2, "Intentionally not defined"); panic(); }
-	const XObjArrayNC<TYPE> &operator =(const XObjArrayNC<TYPE> &anObjArrayNC) { (void)anObjArrayNC; DebugLog(2, "Intentionally not defined"); panic(); }
+//	XObjArrayNC(const XObjArrayNC<TYPE> &anObjArrayNC) { (void)anObjArrayNC; panic("Intentionally not defined"); }
+//	const XObjArrayNC<TYPE> &operator =(const XObjArrayNC<TYPE> &anObjArrayNC) { (void)anObjArrayNC; panic("Intentionally not defined"); }
+	XObjArrayNC(const XObjArrayNC<TYPE> &anObjArrayNC) = delete;
+	const XObjArrayNC<TYPE> &operator =(const XObjArrayNC<TYPE> &anObjArrayNC) = delete;
 	xsize _getLen() const { return _Len; }
 
   public:
@@ -56,16 +59,40 @@ class XObjArrayNC
 	bool NotNull() const { return size() > 0; }
 	bool IsNull() const { return size() == 0; }
 
-	const TYPE &ElementAt(xsize nIndex) const;
-	TYPE &ElementAt(xsize nIndex);
-	
-	// This was useful for realtime debugging with a debugger that do not recognise references. That was years and years ago. Probably not needed anymore.
-	#ifdef _DEBUG_iufasdfsfk
-		const TYPE *DbgAt(int i) const { if ( i >= 0 && (xsize)i < _Len ) return &ElementAt ((xsize) i); else return NULL; }
-	#endif
+	template<typename IntegralType, enable_if(is_integral(IntegralType))>
+	const TYPE &ElementAt(IntegralType nIndex) const
+	{
+		if (nIndex < 0) {
+			panic("XObjArrayNC::ElementAt() : i < 0. System halted\n");
+		}
+		if ( (unsigned_type(IntegralType))nIndex >= _Len ) {
+			panic("XObjArrayNC::ElementAt() -> operator []  -  index (%zu) greater than length (%zu)\n", (size_t)nIndex, _Len);
+		}
+		return  *((TYPE *)(_Data[nIndex].Object));
+	}
 
-	const TYPE &operator[](xsize nIndex) const { return ElementAt(nIndex); }
-	TYPE &operator[](xsize nIndex) { return ElementAt(nIndex); }
+	template<typename IntegralType, enable_if(is_integral(IntegralType))>
+	TYPE &ElementAt(IntegralType nIndex)
+	{
+		if (nIndex < 0) {
+			panic("XObjArrayNC::ElementAt() : i < 0. System halted\n");
+		}
+		if ( (unsigned_type(IntegralType))nIndex >= _Len ) {
+			panic("XObjArrayNC::ElementAt() const -> operator []  -  index (%zu) greater than length (%zu)\n", (size_t)nIndex, _Len);
+		}
+		return  *((TYPE *)(_Data[nIndex].Object));
+	}
+
+	// This was useful for realtime debugging with a debugger that do not recognise references. That was years and years ago. Probably not needed anymore.
+//	#ifdef _DEBUG_iufasdfsfk
+		const TYPE *DbgAt(int i) const { if ( i >= 0 && (xsize)i < _Len ) return &ElementAt ((xsize) i); else return NULL; }
+//	#endif
+
+	template<typename IntegralType, enable_if(is_integral(IntegralType))>
+	const TYPE &operator[](IntegralType nIndex) const { return ElementAt(nIndex); }
+	
+	template<typename IntegralType, enable_if(is_integral(IntegralType))>
+	TYPE &operator[](IntegralType nIndex) { return ElementAt(nIndex); }
 
 	xsize AddReference(TYPE *newElement, bool FreeIt);
 
@@ -135,12 +162,12 @@ void XObjArrayNC<TYPE>::Init()
 	m_allocatedSize = 0;
 	_Len = 0;
 	// THis was useful for realtime debugging with a debugger that do not recognise references.
-	#ifdef _DEBUG_iufasdfsfk
-	{
-		const TYPE *tmp;
-		tmp = DbgAt(0);
-	}
-	#endif
+//	#ifdef _DEBUG_iufasdfsfk
+//	{
+//		const TYPE *tmp;
+//		tmp = DbgAt(0);
+//	}
+//	#endif
 }
 
 /* Constructeur */
@@ -160,8 +187,9 @@ const XObjArray<TYPE> &XObjArray<TYPE>::operator =(const XObjArray<TYPE> &anObjA
 {
   xsize ui;
 
+	if ( this == &anObjArray ) return *this; // self assignement
   	XObjArrayNC<TYPE>::Empty();
-	CheckSize(anObjArray.length(), 0);
+	this->CheckSize(anObjArray.length(), 0);
 	for ( ui=0 ; ui<anObjArray.size() ; ui+=1 ) AddCopy(anObjArray.ElementAt(ui));
 	return *this;
 }
@@ -181,36 +209,13 @@ void XObjArrayNC<TYPE>::CheckSize(xsize nNewSize, xsize nGrowBy)
 {
 	if ( m_allocatedSize < nNewSize ) {
 		nNewSize += nGrowBy + 1;
-		_Data = (XObjArrayEntry<TYPE> *)realloc((void *)_Data, sizeof(XObjArrayEntry<TYPE>) * nNewSize, sizeof(XObjArrayEntry<TYPE>) * m_allocatedSize);
+		_Data = (XObjArrayEntry<TYPE> *)Xrealloc((void *)_Data, sizeof(XObjArrayEntry<TYPE>) * nNewSize, sizeof(XObjArrayEntry<TYPE>) * m_allocatedSize);
 		if ( !_Data ) {
-			DebugLog(2, "XObjArrayNC<TYPE>::CheckSize(nNewSize=%llu, nGrowBy=%llu) : Xrealloc(%llu, %llu, %" PRIuPTR ") returned NULL. System halted\n", nNewSize, nGrowBy, m_allocatedSize, sizeof(XObjArrayEntry<TYPE>) * nNewSize, (uintptr_t)_Data);
-			panic();
+			panic("XObjArrayNC<TYPE>::CheckSize(nNewSize=%zu, nGrowBy=%zu) : Xrealloc(%zu, %zu, %" PRIuPTR ") returned NULL. System halted\n", nNewSize, nGrowBy, m_allocatedSize, sizeof(XObjArrayEntry<TYPE>) * nNewSize, (uintptr_t)_Data);
 		}
 //		memset(&_Data[m_allocatedSize], 0, (nNewSize-m_allocatedSize) * sizeof(XObjArrayEntry<TYPE>));
 		m_allocatedSize = nNewSize;
 	}
-}
-
-/* ElementAt() */
-template<class TYPE>
-TYPE &XObjArrayNC<TYPE>::ElementAt(xsize index)
-{
-		if ( index >= _Len ) {
-			DebugLog(2, "XObjArray<TYPE>::ElementAt(xsize) -> operator []  -  index (%llu) greater than length (%llu)\n", index, _Len);
-			panic();
-		}
-		return  *((TYPE *)(_Data[index].Object));
-}
-
-/* ElementAt() */
-template<class TYPE>
-const TYPE &XObjArrayNC<TYPE>::ElementAt(xsize index) const
-{
-		if ( index >= _Len ) {
-			DebugLog(2, "XObjArray<TYPE>::ElementAt(xsize) const -> operator []  -  index (%llu) greater than length (%llu)\n", index, _Len);
-			panic();
-		}
-		return  *((TYPE *)(_Data[index].Object));
 }
 
 ///* Add() */
@@ -427,8 +432,7 @@ void XObjArrayNC<TYPE>::RemoveAtIndex(xsize nIndex)
 	if ( nIndex  < XObjArrayNC<TYPE>::_Len )
 	{
   	if ( nIndex >= XObjArrayNC<TYPE>::_Len ) {
-		DebugLog(2, "void XObjArrayNC<TYPE>::RemoveAtIndex(xsize nIndex) : BUG nIndex (%llu) is > length(). System halted\n", nIndex);
-	  	panic();
+		panic("void XObjArrayNC<TYPE>::RemoveAtIndex(xsize nIndex) : BUG nIndex (%zu) is > length(). System halted\n", nIndex);
 	  }
 	}
 	if ( _Data[nIndex].FreeIt )
@@ -468,11 +472,10 @@ void XObjArrayNC<TYPE>::RemoveWithoutFreeing(xsize nIndex)
 template<class TYPE>
 void XObjArrayNC<TYPE>::RemoveAtIndex(int nIndex)
 {
-  #if defined(__XTOOLS_INT_CHECK__)
+  #if defined(__XTOOLS_CHECK_OVERFLOW__)
   	if ( nIndex < 0 ) {
-  	  DebugLog(2, "XArray<TYPE>::RemoveAtIndex(int nIndex) : BUG nIndex (%d) is < 0. System halted\n", nIndex);
-	  	panic();
-	  }
+  	  panic("XArray<TYPE>::RemoveAtIndex(int nIndex) : BUG nIndex (%d) is < 0. System halted\n", nIndex);
+	}
 	#endif
 	RemoveAtIndex( (xsize)nIndex ); // Remove(xsize) will check that index is < _Len
 }
@@ -490,7 +493,7 @@ void XObjArrayNC<TYPE>::Remove(const TYPE &Element)
 		}
 	}
 	#if defined(_DEBUG)
-		DebugLog(2, "XObjArray::Remove(TYPE &) -> Not found\n");
+		printf("XObjArray::Remove(TYPE &) -> Not found\n");
 		panic();
 	#endif
 }

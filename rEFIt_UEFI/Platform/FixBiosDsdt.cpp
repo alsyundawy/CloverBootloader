@@ -393,57 +393,57 @@ UINT8 hpet1[] =  // Name (_CID, EisaId ("PNP0C01"))
     0x08, 0x5F, 0x43, 0x49, 0x44, 0x0C, 0x41, 0xD0, 0x0C, 0x01
 };
 */
-UINT8 wakret[]  = { 0xA4, 0x12, 0x04, 0x02, 0x00, 0x00 };
-UINT8 wakslp1[] = { 0x5B, 0x80, 0x50, 0x4D, 0x33, 0x30, 0x01 };
-UINT8 wakslp2[] = { 0x0A, 0x08, 0x5B, 0x81, 0x0D, 0x50, 0x4D, 0x33, 0x30, 0x01,
-  0x00, 0x04, 0x53, 0x4C, 0x4D, 0x45, 0x01, 0x70, 0x00, 0x53, 0x4C, 0x4D, 0x45 };
+const UINT8 wakret[]  = { 0xA4, 0x12, 0x04, 0x02, 0x00, 0x00 };
+//const UINT8 wakslp1[] = { 0x5B, 0x80, 0x50, 0x4D, 0x33, 0x30, 0x01 };
+//const UINT8 wakslp2[] = { 0x0A, 0x08, 0x5B, 0x81, 0x0D, 0x50, 0x4D, 0x33, 0x30, 0x01,
+//  0x00, 0x04, 0x53, 0x4C, 0x4D, 0x45, 0x01, 0x70, 0x00, 0x53, 0x4C, 0x4D, 0x45 };
 
-UINT8 waksecur[] = {0xA0, 0x0D, 0x91, 0x95, 0x68, 0x01, 0x94, 0x68, 0x0A, 0x05,
+const UINT8 waksecur[] = {0xA0, 0x0D, 0x91, 0x95, 0x68, 0x01, 0x94, 0x68, 0x0A, 0x05,
                     0x70, 0x0A, 0x03, 0x68};
 
-UINT8 pwrb[] = { //? \_SB_PWRB, 0x02
-  0x86, 0x5C, 0x2E, 0x5F, 0x53, 0x42, 0x5F, 0x50, 0x57, 0x52, 0x42, 0x0A, 0x02
-};
+//const UINT8 pwrb[] = { //? \_SB_PWRB, 0x02
+//  0x86, 0x5C, 0x2E, 0x5F, 0x53, 0x42, 0x5F, 0x50, 0x57, 0x52, 0x42, 0x0A, 0x02
+//};
 
 
-UINT8 acpi3[] = {  //Name(_HID, "ACPI003")
+const UINT8 acpi3[] = {  //Name(_HID, "ACPI003")
   0x08, 0x5F, 0x48, 0x49, 0x44, 0x0D,
   0x41, 0x43, 0x50, 0x49, 0x30, 0x30, 0x30, 0x33, 0x00
 };
 
   //Name (_PRW, Package (0x02){0x1C, 0x03}
-UINT8 prw1c[] = {
+const UINT8 prw1c[] = {
   0x08, 0x5F, 0x50, 0x52, 0x57, 0x12, 0x06, 0x02, 0x0A, 0x1C, 0x0A, 0x03
 };
 
 
-UINT8 dtgp_1[] = {  // DTGP (Arg0, Arg1, Arg2, Arg3, RefOf (Local0))
+const UINT8 dtgp_1[] = {  // DTGP (Arg0, Arg1, Arg2, Arg3, RefOf (Local0))
                     // Return (Local0)
    0x44, 0x54, 0x47, 0x50, 0x68, 0x69, 0x6A, 0x6B,
    0x71, 0x60, 0xA4, 0x60
 };
 
-UINT8 pwrbcid[] = {
-    0x08, 0x5F, 0x43, 0x49, 0x44, 0x0C, 0x41, 0xD0, 0x0C, 0x0E, 0x14,
-    0x0E, 0x5F, 0x50, 0x52, 0x57, 0x00, 0xA4, 0x12, 0x06, 0x02, 0x0A,
-    0x0B, 0x0A, 0x04
-};
+//const UINT8 pwrbcid[] = {
+//    0x08, 0x5F, 0x43, 0x49, 0x44, 0x0C, 0x41, 0xD0, 0x0C, 0x0E, 0x14,
+//    0x0E, 0x5F, 0x50, 0x52, 0x57, 0x00, 0xA4, 0x12, 0x06, 0x02, 0x0A,
+//    0x0B, 0x0A, 0x04
+//};
 
-UINT8 pwrbprw[] = {
-  0x14, 0x0E, 0x5F, 0x50, 0x52, 0x57, 0x00, 0xA4, 0x12, 0x06, 0x02,
-  0x0A, 0x0B, 0x0A, 0x04
-};
+//const UINT8 pwrbprw[] = {
+//  0x14, 0x0E, 0x5F, 0x50, 0x52, 0x57, 0x00, 0xA4, 0x12, 0x06, 0x02,
+//  0x0A, 0x0B, 0x0A, 0x04
+//};
 
-UINT8 shutdown0[] = {
+const UINT8 shutdown0[] = {
     0xA0, 0x05, 0x93, 0x68, 0x0A, 0x05, 0xA1, 0x01
 };
 
-UINT8 shutdown1[] = {
+const UINT8 shutdown1[] = {
   0xA0, 0x0F, 0x91, 0x91, 0x93, 0x68, 0x0A, 0x03, 0x93, 0x68, 0x0A, 0x04, 0x93, 0x68, 0x0A, 0x05, 0xA1, 0x01
 };
 
 
-UINT8 pnlf[] = {
+const UINT8 pnlf[] = {
   0x5B, 0x82, 0x2D, 0x50, 0x4E, 0x4C, 0x46,                         //Device (PNLF)
   0x08, 0x5F, 0x48, 0x49, 0x44, 0x0C, 0x06, 0x10, 0x00, 0x02,       //  Name (_HID, EisaId ("APP0002"))
   0x08, 0x5F, 0x43, 0x49, 0x44,                                     //  Name (_CID,
@@ -451,21 +451,21 @@ UINT8 pnlf[] = {
   0x08, 0x5F, 0x55, 0x49, 0x44, 0x0A, 0x0A,                         //  Name (_UID, 0x0A)
   0x08, 0x5F, 0x53, 0x54, 0x41, 0x0A, 0x0B                          //  Name (_STA, 0x0B)
 };
-//Scope (_SB.PCI0.LPCB)
-UINT8 pnlfLPC[] = {
-  0x10, 0x3e, 0x2f, 0x03, 0x5f, 0x53, 0x42, 0x5f, 0x50, 0x43, 0x49, 0x30, 0x4c, 0x50, 0x43, 0x42,
-  0x5b, 0x82, 0x2d, 0x50, 0x4e, 0x4c, 0x46, 0x08, 0x5f, 0x48, 0x49,
-  0x44, 0x0c, 0x06, 0x10, 0x00, 0x02, 0x08, 0x5f, 0x43, 0x49, 0x44, 0x0d,
-  0x62, 0x61, 0x63, 0x6b, 0x6c, 0x69, 0x67, 0x68, 0x74, 0x00, 0x08, 0x5f,
-  0x55, 0x49, 0x44, 0x0a, 0x0a, 0x08, 0x5f, 0x53, 0x54, 0x41, 0x0a, 0x0b
-};
+////Scope (_SB.PCI0.LPCB)
+//const UINT8 pnlfLPC[] = {
+//  0x10, 0x3e, 0x2f, 0x03, 0x5f, 0x53, 0x42, 0x5f, 0x50, 0x43, 0x49, 0x30, 0x4c, 0x50, 0x43, 0x42,
+//  0x5b, 0x82, 0x2d, 0x50, 0x4e, 0x4c, 0x46, 0x08, 0x5f, 0x48, 0x49,
+//  0x44, 0x0c, 0x06, 0x10, 0x00, 0x02, 0x08, 0x5f, 0x43, 0x49, 0x44, 0x0d,
+//  0x62, 0x61, 0x63, 0x6b, 0x6c, 0x69, 0x67, 0x68, 0x74, 0x00, 0x08, 0x5f,
+//  0x55, 0x49, 0x44, 0x0a, 0x0a, 0x08, 0x5f, 0x53, 0x54, 0x41, 0x0a, 0x0b
+//};
 
 
-UINT8 app2[] = { //Name (_HID, EisaId("APP0002"))
+const UINT8 app2[] = { //Name (_HID, EisaId("APP0002"))
   0x08, 0x5F, 0x48, 0x49, 0x44, 0x0C, 0x06, 0x10, 0x00, 0x02
 };
 
-UINT8 darwin[] =
+UINT8 darwin[] =  //it is not const
 {  //addresses shifted by 0x24
   0x08, 0x56, 0x45, 0x52, // 00000020    " .. .VER"
   0x30, 0x0D, 0x43, 0x6C, 0x6F, 0x76, 0x65, 0x72, // 00000028    "0.Clover"
@@ -617,7 +617,7 @@ VOID CheckHardware()
   UINTN               display=0;
 
 
-  pci_dt_t            PCIdevice;
+//  pci_dt_t            PCIdevice;
   EFI_DEVICE_PATH_PROTOCOL *DevicePath = NULL;
 
    usb=0;
@@ -629,7 +629,7 @@ VOID CheckHardware()
                                     &HandleCount,
                                     &HandleBuffer
                                     );
-  if (!EFI_ERROR (Status)) {
+  if (!EFI_ERROR(Status)) {
 //    DBG("PciIo handles count=%d\n", HandleCount);
     for (HandleIndex = 0; HandleIndex < HandleCount; HandleIndex++) {
       Handle = HandleBuffer[HandleIndex];
@@ -638,7 +638,7 @@ VOID CheckHardware()
                                     &gEfiPciIoProtocolGuid,
                                     (VOID **)&PciIo
                                     );
-      if (!EFI_ERROR (Status)) {
+      if (!EFI_ERROR(Status)) {
         UINT32 deviceid;
         /* Read PCI BUS */
         PciIo->GetLocation (PciIo, &Segment, &Bus, &Device, &Function);
@@ -653,7 +653,7 @@ VOID CheckHardware()
         deviceid = Pci.Hdr.DeviceId | (Pci.Hdr.VendorId << 16);
 
         // add for auto patch dsdt get DSDT Device _ADR
-        PCIdevice.DeviceHandle = Handle;
+   //     PCIdevice.DeviceHandle = Handle;
         DevicePath = DevicePathFromHandle (Handle);
         if (DevicePath) {
   //        DBG("Device patch = %ls \n", DevicePathToStr(DevicePath));
@@ -1312,7 +1312,7 @@ INT32 CmpDev(UINT8 *dsdt, UINT32 i, UINT8 *Name)
 
 //the procedure can find BIN array UNSIGNED CHAR8 sizeof N inside part of large array "dsdt" size of len
 // return position or -1 if not found
-INT32 FindBin (UINT8 *dsdt, UINT32 len, UINT8* bin, UINT32 N)
+INT32 FindBin (UINT8 *dsdt, UINT32 len, const UINT8* bin, UINT32 N)
 {
   UINT32 i, j;
   BOOLEAN eq;
@@ -1707,7 +1707,7 @@ UINT32 FixADP1 (UINT8* dsdt, UINT32 len)
   INT32 sizeoffset, shift;
   CHAR8 Name[4];
   DBG("Start ADP1 fix\n");
-  shift = FindBin(dsdt, len, (UINT8*)acpi3, sizeof(acpi3));
+  shift = FindBin(dsdt, len, (const UINT8*)acpi3, sizeof(acpi3));
   if (shift < 0) {
     // not found - create new one or do nothing
     MsgLog("no device(AC) exists\n");
@@ -1729,7 +1729,7 @@ UINT32 FixADP1 (UINT8* dsdt, UINT32 len)
   }
   ReplaceName(dsdt, len, Name, "ADP1");
   //find PRW
-  if(FindBin(dsdt+adr, size, (UINT8*)prw1c, 8) >= 0){
+  if(FindBin(dsdt+adr, size, (const UINT8*)prw1c, 8) >= 0){
     DBG("_prw is present\n");
     return len;
   }
@@ -1744,7 +1744,7 @@ UINT32 FixADP1 (UINT8* dsdt, UINT32 len)
   return len;
 }
 
-UINT32 FixAny (UINT8* dsdt, UINT32 len, UINT8* ToFind, UINT32 LenTF, UINT8* ToReplace, UINT32 LenTR)
+UINT32 FixAny (UINT8* dsdt, UINT32 len, const UINT8* ToFind, UINT32 LenTF, const UINT8* ToReplace, UINT32 LenTR)
 {
   INT32 sizeoffset, adr;
   UINT32 i;
@@ -1790,7 +1790,7 @@ UINT32 FixAny (UINT8* dsdt, UINT32 len, UINT8* ToFind, UINT32 LenTF, UINT8* ToRe
 }
 
 //new method. by goodwin_c
-UINT32 FixRenameByBridge2 (UINT8* dsdt, UINT32 len, CHAR8* TgtBrgName, UINT8* ToFind, UINT32 LenTF, UINT8* ToReplace, UINT32 LenTR)
+UINT32 FixRenameByBridge2 (UINT8* dsdt, UINT32 len, CHAR8* TgtBrgName, const UINT8* ToFind, UINT32 LenTF, UINT8* ToReplace, UINT32 LenTR)
 {
   INT32 adr;
   BOOLEAN found = FALSE;
@@ -1910,7 +1910,7 @@ UINT32 AddPNLF (UINT8 *dsdt, UINT32 len)
   UINT32              adr = 0;
   DBG("Start PNLF Fix\n");
 
-  if (FindBin(dsdt, len, (UINT8*)app2, 10) >= 0) {
+  if (FindBin(dsdt, len, app2, 10) >= 0) {
     return len; //the device already exists
   }
   //search  PWRB PNP0C0C
@@ -1952,7 +1952,7 @@ UINT32 AddPNLF (UINT8 *dsdt, UINT32 len)
                                     &HandleBuffer
                                     );
 
-  if (!EFI_ERROR (Status)) {
+  if (!EFI_ERROR(Status)) {
     for (HandleIndex = 0; HandleIndex < HandleCount; HandleIndex++) {
       Handle = HandleBuffer[HandleIndex];
       Status = gBS->HandleProtocol (
@@ -1960,7 +1960,7 @@ UINT32 AddPNLF (UINT8 *dsdt, UINT32 len)
                                     &gEfiPciIoProtocolGuid,
                                     (VOID **)&PciIo
                                     );
-      if (!EFI_ERROR (Status)) {
+      if (!EFI_ERROR(Status)) {
         PciIo->GetLocation (PciIo, &Segment, &Bus, &Device, &Function);
         Status = PciIo->Pci.Read (
                                   PciIo,
@@ -2423,7 +2423,6 @@ UINT32 FIXLPCB (UINT8 *dsdt, UINT32 len)
     k = FindMethod(dsdt + i, Size, "_DSM");
     if (k != 0) {
       k += i;
-      if ((dropDSM & DEV_LPC) != 0) {
         Size = get_size(dsdt, k);
         if(!Size) {
           return len;
@@ -2433,10 +2432,6 @@ UINT32 FIXLPCB (UINT8 *dsdt, UINT32 len)
         //to correct outers we have to calculate offset
         len = CorrectOuters(dsdt, len, k - 2, sizeoffset);
         MsgLog("_DSM in LPC already exists, dropped\n");
-      } else {
-        MsgLog("_DSM already exists, patch LPC will not be applied\n");
-        return len;
-      }
     }
   }
 
@@ -2580,20 +2575,11 @@ UINT32 FIXDisplay (UINT8 *dsdt, UINT32 len, INT32 VCard)
       k = FindMethod(dsdt + i, Size, "_DSM");
       if (k != 0) {
         k += i;
-        if ((((dropDSM & DEV_ATI)   != 0) && (DisplayVendor[VCard] == 0x1002)) ||
-            (((dropDSM & DEV_NVIDIA)!= 0) && (DisplayVendor[VCard] == 0x10DE)) ||
-            (((dropDSM & DEV_INTEL) != 0) && (DisplayVendor[VCard] == 0x8086))) {
           Size = get_size(dsdt, k);
           sizeoffset = - 1 - Size;
           len = move_data(k - 1, dsdt, len, sizeoffset); //kill _DSM
           len = CorrectOuters(dsdt, len, k - 2, sizeoffset);
           MsgLog("_DSM in display already exists, dropped\n");
-        } else {
-          MsgLog("_DSM already exists, patch display will not be applied\n");
-          //        return len;
-          DisplayADR1[VCard] = 0;  //xxx
-          DsmFound = TRUE;
-        }
       }
     }
   }
@@ -2852,16 +2838,11 @@ UINT32 AddHDMI (UINT8 *dsdt, UINT32 len)
       k = FindMethod(dsdt + i, Size, "_DSM");
       if (k != 0) {
         k += i;
-        if ((dropDSM & DEV_HDMI) != 0) {
-          Size = get_size(dsdt, k);
+           Size = get_size(dsdt, k);
           sizeoffset = - 1 - Size;
           len = move_data(k - 1, dsdt, len, sizeoffset);
           len = CorrectOuters(dsdt, len, k - 2, sizeoffset);
           DBG("_DSM in HDAU already exists, dropped\n");
-        } else {
-          DBG("_DSM already exists, patch HDAU will not be applied\n");
-          return len;
-        }
       }
     }
     root = aml_create_node(NULL);
@@ -3027,16 +3008,11 @@ UINT32 FIXNetwork (UINT8 *dsdt, UINT32 len, UINT32 card)
     k = FindMethod(dsdt + i, Size, "_DSM");
     if (k != 0) {
       k += i;
-      if ((dropDSM & DEV_LAN) != 0) {
         Size = get_size(dsdt, k);
         sizeoffset = - 1 - Size;
         len = move_data(k - 1, dsdt, len, sizeoffset);
         len = CorrectOuters(dsdt, len, k - 2, sizeoffset);
         DBG("_DSM in LAN already exists, dropped\n");
-      } else {
-        DBG("_DSM already exists, patch LAN will not be applied\n");
-        return len;
-      }
     }
     root = aml_create_node(NULL);
   } else {
@@ -3221,16 +3197,11 @@ UINT32 FIXAirport (UINT8 *dsdt, UINT32 len)
     k = FindMethod(dsdt + i, Size, "_DSM");
     if (k != 0) {
       k += i;
-      if ((dropDSM & DEV_WIFI) != 0) {
         Size = get_size(dsdt, k);
         sizeoffset = - 1 - Size;
         len = move_data(k - 1, dsdt, len, sizeoffset);
         len = CorrectOuters(dsdt, len, k - 2, sizeoffset);
         DBG("_DSM in ARPT already exists, dropped\n");
-      } else {
-        DBG("_DSM already exists, patch ARPT will not be applied\n");
-        return len;
-      }
     }
     root = aml_create_node(NULL);
   }
@@ -3375,16 +3346,11 @@ UINT32 FIXSBUS (UINT8 *dsdt, UINT32 len)
     k = FindMethod(dsdt + i, Size, "_DSM");
     if (k != 0) {
       k += i;
-      if ((dropDSM & DEV_SMBUS) != 0) {
         Size = get_size(dsdt, k);
         sizeoffset = - 1 - Size;
         len = move_data(k - 1, dsdt, len, sizeoffset);
         len = CorrectOuters(dsdt, len, k - 2, sizeoffset);
         DBG("_DSM in SBUS already exists, dropped\n");
-      } else {
-        DBG("_DSM already exists, patch SBUS will not be applied\n");
-        return len;
-      }
     }
     Size = get_size(dsdt, SBUSADR);
     if (ReplaceName(dsdt + SBUSADR, Size, NULL, "BUS0") < 0) {
@@ -3672,16 +3638,11 @@ UINT32 FIXFirewire (UINT8 *dsdt, UINT32 len)
   k = FindMethod(dsdt + i, Size, "_DSM");
   if (k != 0) {
     k += i;
-    if ((dropDSM & DEV_FIREWIRE) != 0) {
       Size = get_size(dsdt, k);
       sizeoffset = - 1 - Size;
       len = move_data(k - 1, dsdt, len, sizeoffset);
       len = CorrectOuters(dsdt, len, k - 2, sizeoffset);
       DBG("_DSM in FRWR already exists, dropped\n");
-    } else {
-      DBG("_DSM already exists, patch FRWR will not be applied\n");
-      return len;
-    }
   }
 
   root = aml_create_node(NULL);
@@ -3803,16 +3764,11 @@ UINT32 AddHDEF (UINT8 *dsdt, UINT32 len, CHAR8* OSVersion)
     k = FindMethod(dsdt + i, Size, "_DSM");
     if (k != 0) {
       k += i;
-      if ((dropDSM & DEV_HDA) != 0) {
         Size = get_size(dsdt, k);
         sizeoffset = - 1 - Size;
         len = move_data(k - 1, dsdt, len, sizeoffset);
         len = CorrectOuters(dsdt, len, k - 2, sizeoffset);
         DBG("_DSM in HDA already exists, dropped\n");
-      } else {
-        DBG("_DSM already exists, patch HDA will not be applied\n");
-        return len;
-      }
     }
   }
 
@@ -4119,7 +4075,6 @@ UINT32 FIXUSB (UINT8 *dsdt, UINT32 len)
             //here we want to check who is the master of the _DSM
             adr1 = devFind(dsdt, k);
             if (adr1 == adr) {
-              if ((dropDSM & DEV_USB) != 0) {
                 Size = get_size(dsdt, k);
                 if (!Size) {
                   continue;
@@ -4128,10 +4083,6 @@ UINT32 FIXUSB (UINT8 *dsdt, UINT32 len)
                 len = move_data(k - 1, dsdt, len, sizeoffset);
                 len = CorrectOuters(dsdt, len, k - 2, sizeoffset);
                 DBG("_DSM in USB already exists, dropped by 0x%X\n", sizeoffset);
-              } else {
-                DBG("_DSM already exists, patch USB will not be applied\n");
-                continue;
-              }
             } else {
               DBG(" found slave _DSM, skip\n");
               continue;
@@ -4325,16 +4276,11 @@ UINT32 FIXIDE (UINT8 *dsdt, UINT32 len)
     k = FindMethod(dsdt + i, Size, "_DSM");
     if (k != 0) {
       k += i;
-      if ((dropDSM & DEV_IDE) != 0) {
         Size = get_size(dsdt, k);
         sizeoffset = - 1 - Size;
         len = move_data(k - 1, dsdt, len, sizeoffset);
         len = CorrectOuters(dsdt, len, k - 2, sizeoffset);
         DBG("_DSM in IDE already exists, dropped\n");
-      } else {
-        DBG("_DSM already exists, patch IDE will not be applied\n");
-        return len;
-      }
     }
   }
 
@@ -4477,16 +4423,11 @@ UINT32 FIXSATAAHCI (UINT8 *dsdt, UINT32 len)
     k = FindMethod(dsdt + i, Size, "_DSM");
     if (k != 0) {
       k += i;
-      if ((dropDSM & DEV_SATA) != 0) {
         Size = get_size(dsdt, k);
         sizeoffset = - 1 - Size;
         len = move_data(k - 1, dsdt, len, sizeoffset);
         len = CorrectOuters(dsdt, len, k - 2, sizeoffset);
         DBG("_DSM in SATA already exists, dropped\n");
-      } else {
-        DBG("_DSM already exists, patch SATA will not be applied\n");
-        return len;
-      }
     }
   }
 
@@ -4574,16 +4515,11 @@ UINT32 FIXSATA (UINT8 *dsdt, UINT32 len)
     k = FindMethod(dsdt + i, Size, "_DSM");
     if (k != 0) {
       k += i;
-      if ((dropDSM & DEV_SATA) != 0) {
         Size = get_size(dsdt, k);
         sizeoffset = - 1 - Size;
         len = move_data(k - 1, dsdt, len, sizeoffset);
         len = CorrectOuters(dsdt, len, k - 2, sizeoffset);
         DBG("_DSM in SATA already exists, dropped\n");
-      } else {
-        DBG("_DSM already exists, patch SATA will not be applied\n");
-        return len;
-      }
     }
   }
 
@@ -4899,7 +4835,7 @@ UINT32 FIXSHUTDOWN_ASUS (UINT8 *dsdt, UINT32 len)
 {
   UINT32 i, j, sizeoffset = 0;
   UINT32 adr, adr1 = 0, adr2, size, shift = 0;
-  UINT8 *shutdown = NULL;
+  const UINT8 *shutdown;
 
   DBG("Start SHUTDOWN Fix len=%X\n", len);
   adr = FindMethod(dsdt, len, "_PTS");
@@ -5306,13 +5242,13 @@ VOID RenameDevices(UINT8* table)
     do
     {
 
-      shift = FindBin(table + adr, (UINT32)(len - adr), (UINT8*)Find, 4); //next occurence
+      shift = FindBin(table + adr, (UINT32)(len - adr), (const UINT8*)Find, 4); //next occurence
       if (shift < 0) {
         break; //not found
       }
       adr += shift;
 //      DBG("found Name @ 0x%X\n", adr);
-      if (!Bridge || (FindBin(table + adr - 4, 5, (UINT8*)(Bridge->Name), 4) == 0)) { // long name like "RP02.PXSX"
+      if (!Bridge || (FindBin(table + adr - 4, 5, (const UINT8*)(Bridge->Name), 4) == 0)) { // long name like "RP02.PXSX"
         CopyMem(table + adr, Replace, 4);
         adr += 5; //at least, it is impossible to see  PXSXPXSX
 //        DBG("replaced\n");
@@ -5370,7 +5306,7 @@ VOID RenameDevices(UINT8* table)
 	MsgLog("  %lld replacements\n", Num);
 }
 
-VOID FixBiosDsdt (UINT8* temp, EFI_ACPI_2_0_FIXED_ACPI_DESCRIPTION_TABLE* fadt, CHAR8 *OSVersion)
+VOID FixBiosDsdt(UINT8* temp, EFI_ACPI_2_0_FIXED_ACPI_DESCRIPTION_TABLE* fadt, CHAR8 *OSVersion)
 {
   UINT32 DsdtLen;
 
@@ -5386,7 +5322,7 @@ VOID FixBiosDsdt (UINT8* temp, EFI_ACPI_2_0_FIXED_ACPI_DESCRIPTION_TABLE* fadt, 
   USBIDFIX = TRUE;
 
   DsdtLen = ((EFI_ACPI_DESCRIPTION_HEADER*)temp)->Length;
-  if ((DsdtLen < 20) || (DsdtLen > 400000)) { //fool proof (some ASUS dsdt > 300kb?)
+  if ((DsdtLen < 20) || (DsdtLen > 1000000)) { //fool proof (some ASUS dsdt > 300kb?). Up to 1Mb
     MsgLog("DSDT length out of range\n");
     return;
   }
@@ -5409,14 +5345,14 @@ VOID FixBiosDsdt (UINT8* temp, EFI_ACPI_2_0_FIXED_ACPI_DESCRIPTION_TABLE* fadt, 
       if (gSettings.PatchDsdtMenuItem[i].BValue) {
         if (!gSettings.PatchDsdtTgt[i]) {
               DsdtLen = FixAny(temp, DsdtLen,
-                           gSettings.PatchDsdtFind[i], gSettings.LenToFind[i],
-                           gSettings.PatchDsdtReplace[i], gSettings.LenToReplace[i]);
+                           (const UINT8*)gSettings.PatchDsdtFind[i], gSettings.LenToFind[i],
+                           (const UINT8*)gSettings.PatchDsdtReplace[i], gSettings.LenToReplace[i]);
 
         }else{
     //      DBG("Patching: renaming in bridge\n");
           DsdtLen = FixRenameByBridge2(temp, DsdtLen,
                            gSettings.PatchDsdtTgt[i],
-                           gSettings.PatchDsdtFind[i],
+                           (const UINT8*)gSettings.PatchDsdtFind[i],
                            gSettings.LenToFind[i],
                            gSettings.PatchDsdtReplace[i],
                            gSettings.LenToReplace[i]);

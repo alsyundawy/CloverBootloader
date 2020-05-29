@@ -433,7 +433,7 @@ GetSleepImageLocation(IN REFIT_VOLUME *Volume, REFIT_VOLUME **SleepImageVolume, 
                 }
               }
               if (VolName) {
-				  snwprintf(VolName, VolNameSize, "%s", VolNameStart);
+                snwprintf(VolName, VolNameSize, "%s", VolNameStart);
                 ImageVolume = FindVolumeByName(VolName);
                 if (ImageVolume) {
                   ImageName = PoolPrint(L"%a", VolNameEnd);
@@ -917,7 +917,7 @@ IsOsxHibernated (IN LOADER_ENTRY *Entry)
               //Convert BeUUID to LeUUID
               //Ptr points to begin L"A82E84C6-9DD6-49D6-960A-0F4C2FE4851C"
               EFI_GUID TmpGuid;
-              CHAR16 *TmpStr = NULL;
+//              CHAR16 *TmpStr = NULL;
               
               ResumeFromCoreStorage = TRUE;
               //         DBG("got str=%ls\n", Ptr);
@@ -926,10 +926,9 @@ IsOsxHibernated (IN LOADER_ENTRY *Entry)
                 DBG("    cant convert Str %ls to GUID\n", Ptr);
               } else {
                 //TmpStr = PoolPrint(L"%s", strguid(&TmpGuid));
-                TmpStr =  GuidLEToStr(&TmpGuid);
+                XStringW TmpStr =  GuidLEToStr(&TmpGuid);
                 //           DBG("got the guid %ls\n", TmpStr);
-                CopyMem((VOID*)Ptr, TmpStr, StrSize(TmpStr));
-                FreePool(TmpStr);
+                CopyMem((VOID*)Ptr, TmpStr.wc_str(), TmpStr.sizeInNativeChars());
               }
             }
             if (StrCmp(gST->FirmwareVendor, L"INSYDE Corp.") != 0) {
@@ -1046,13 +1045,13 @@ PrepareHibernation (IN REFIT_VOLUME *Volume)
   // If legacy boot-switch-vars exists (NVRAM working), then use it.
   //
   Status = GetVariable2 (L"boot-switch-vars", &gEfiAppleBootGuid, &Value, &Size);
-  if (!EFI_ERROR (Status)) {
+  if (!EFI_ERROR(Status)) {
     //
     // Leave it as is.
     //
     DBG(" boot-switch-vars present\n");
     ZeroMem (Value, Size);
-    gBS->FreePool (Value);
+    gBS->FreePool(Value);
     return TRUE;
   }
   
@@ -1075,8 +1074,8 @@ PrepareHibernation (IN REFIT_VOLUME *Volume)
     //
     Status = GetVariable2 (L"IOHibernateRTCVariables", &gEfiAppleBootGuid, &Value, &Size);
 	  DBG("get IOHR variable status=%s, size=%llu, RTC info=%d\n", strerror(Status), Size, HasHibernateInfoInRTC);
-    if (!HasHibernateInfo && !EFI_ERROR (Status) && Size == sizeof (RtcVars)) {
-      CopyMem (RtcRawVars, Value, sizeof (RtcVars));
+    if (!HasHibernateInfo && !EFI_ERROR(Status) && Size == sizeof (RtcVars)) {
+      CopyMem(RtcRawVars, Value, sizeof (RtcVars));
       HasHibernateInfo = (RtcVars.signature[0] == 'A' && RtcVars.signature[1] == 'A' &&
       RtcVars.signature[2] == 'P' && RtcVars.signature[3] == 'L');
     }
@@ -1084,12 +1083,12 @@ PrepareHibernation (IN REFIT_VOLUME *Volume)
     //
     // Erase RTC variables in NVRAM.
     //
-    if (!EFI_ERROR (Status)) {
+    if (!EFI_ERROR(Status)) {
       Status = gRT->SetVariable (L"IOHibernateRTCVariables", &gEfiAppleBootGuid,
                                  EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS,
                                  0, NULL);
       ZeroMem (Value, Size);
-      gBS->FreePool (Value);
+      gBS->FreePool(Value);
     }
     
     //
@@ -1133,7 +1132,7 @@ PrepareHibernation (IN REFIT_VOLUME *Volume)
   //
   Value = NULL;
   Status = GetVariable2 (L"IOHibernateRTCVariables", &gEfiAppleBootGuid, &Value, &Size);
-  if (!EFI_ERROR (Status)) {
+  if (!EFI_ERROR(Status)) {
     DBG(" IOHibernateRTCVariables found - will be used as boot-switch-vars\n");
     //
     // Delete IOHibernateRTCVariables.
@@ -1175,7 +1174,7 @@ PrepareHibernation (IN REFIT_VOLUME *Volume)
   //
   ZeroMem (Value, Size);
   if (HasIORTCVariables) {
-    gBS->FreePool (Value);
+    gBS->FreePool(Value);
   }
   
   if (EFI_ERROR(Status)) {

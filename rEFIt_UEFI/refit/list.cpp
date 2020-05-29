@@ -121,7 +121,7 @@
 //
 //    Status = Constructor(&Element, ConstructorParameters);
 //
-//    if (EFI_ERROR (Status)) {
+//    if (EFI_ERROR(Status)) {
 //      return EFI_ABORTED;
 //    }
 //#ifdef DEBUG_LIST
@@ -146,7 +146,7 @@
 //  //
 //  // Create a new list entry
 //  //
-//  CurrentList = (__typeof__(CurrentList))AllocateZeroPool (sizeof (REFIT_LIST));
+//  CurrentList = (__typeof__(CurrentList))AllocateZeroPool(sizeof (REFIT_LIST));
 //
 //  if (!CurrentList) {
 //    return EFI_OUT_OF_RESOURCES;
@@ -285,7 +285,7 @@
 //            //
 //            Status = Entry->Destructor(&Element);
 //
-//            if (EFI_ERROR (Status)) {
+//            if (EFI_ERROR(Status)) {
 //              return EFI_ABORTED;
 //            }
 //
@@ -343,7 +343,7 @@
 //                //
 //                Status = Entry->Destructor(&Element);
 //
-//                if (EFI_ERROR (Status)) {
+//                if (EFI_ERROR(Status)) {
 //                  return EFI_ABORTED;
 //                }
 //

@@ -263,7 +263,7 @@ AllocateReservedPool (
 **/
 VOID *
 EFIAPI
-AllocateZeroPool (
+AllocateZeroPool(
   IN UINTN  AllocationSize
   );
 
@@ -324,7 +324,7 @@ AllocateReservedZeroPool (
 **/
 VOID *
 EFIAPI
-AllocateCopyPool (
+AllocateCopyPool(
   IN UINTN       AllocationSize,
   IN CONST VOID  *Buffer
   );
@@ -480,7 +480,7 @@ ReallocateReservedPool (
 **/
 VOID
 EFIAPI
-FreePool (
+FreePool(
   IN JCONST VOID   *Buffer
   );
 

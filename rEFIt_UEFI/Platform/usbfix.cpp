@@ -76,14 +76,14 @@ FixOwnership(VOID)
                     &HandleArrayCount,
                     &HandleArray
                     );
-  if (!EFI_ERROR (Status)) {
+  if (!EFI_ERROR(Status)) {
     for (Index = 0; Index < HandleArrayCount; Index++) {
       Status = gBS->HandleProtocol (
                       HandleArray[Index],
                       &gEfiPciIoProtocolGuid,
                       (VOID **)&PciIo
                       );
-      if (!EFI_ERROR (Status)) {
+      if (!EFI_ERROR(Status)) {
         //
         // Find the USB host controller
         //
@@ -95,7 +95,7 @@ FixOwnership(VOID)
                       &Pci
                       );
         
-        if (!EFI_ERROR (Status)) {
+        if (!EFI_ERROR(Status)) {
           if ((PCI_CLASS_SERIAL == Pci.Hdr.ClassCode[2]) &&
             (PCI_CLASS_SERIAL_USB == Pci.Hdr.ClassCode[1])) {
             switch (Pci.Hdr.ClassCode[0]) {
@@ -205,7 +205,7 @@ FixOwnership(VOID)
                 usbcmd = *((UINT32*)(UINTN)(opaddr));      // Command Register
                 usbsts = *((UINT32*)(UINTN)(opaddr + 4));    // Status Register
                 usbintr = *((UINT32*)(UINTN)(opaddr + 8));    // Interrupt Enable Register
-                DBG("usbcmd=%08X usbsts=%08X usbintr=%08X\n", usbcmd, usbsts, usbintr);
+                MsgLog("usbcmd=%08X usbsts=%08X usbintr=%08X\n", usbcmd, usbsts, usbintr);
                 
                 // read 32bit USBLEGSUP (eecp+0) 
                 PciIo->Pci.Read (PciIo, EfiPciIoWidthUint32, ExtendCap, 1, &usblegsup);
@@ -344,6 +344,6 @@ FixOwnership(VOID)
   } else {
     return Status;
   }
-  gBS->FreePool (HandleArray);
+  gBS->FreePool(HandleArray);
   return Status;
 }

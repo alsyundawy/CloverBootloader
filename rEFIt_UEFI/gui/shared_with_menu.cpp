@@ -39,39 +39,39 @@
  *  THIS will most likely disappear soon !
  */
 
-#include "../Platform/Platform.h"
-#include "../refit/lib.h"
-#include "menu_items/menu_items.h"
-#include "../entry_scan/common.h"
+#include <Platform.h>
+//#include "../refit/lib.h"
+//#include "menu_items/menu_items.h"
+//#include "../entry_scan/common.h"
 
-CONST XString ArgOptional[NUM_OPT] = {
-  "arch=i386"_XS,       //0
-  "arch=x86_64"_XS,     //1
-  "-v "_XS,             //2
-  "-f "_XS,             //3
-  "-s "_XS,             //4
-  "-x "_XS,             //5
-  "nv_disable=1"_XS,    //6
-  "slide=0"_XS,         //7
-  "darkwake=0"_XS,      //8
-  "-xcpm"_XS,           //9
-  "-gux_no_idle"_XS,    //10
-  "-gux_nosleep"_XS,    //11
-  "-gux_nomsi"_XS,      //12
-  "-gux_defer_usb2"_XS, //13
-  "keepsyms=1"_XS,      //14
-  "debug=0x100"_XS,     //15
-  "kextlog=0xffff"_XS,  //16
-  "-alcoff"_XS,         //17
-  "-shikioff"_XS,       //18
-  "nvda_drv=1"_XS       //19
+CONST XString8 ArgOptional[NUM_OPT] = {
+  "arch=i386"_XS8,       //0
+  "arch=x86_64"_XS8,     //1
+  "-v"_XS8,             //2
+  "-f"_XS8,             //3
+  "-s"_XS8,             //4
+  "-x"_XS8,             //5
+  "nv_disable=1"_XS8,    //6
+  "slide=0"_XS8,         //7
+  "darkwake=0"_XS8,      //8
+  "-xcpm"_XS8,           //9
+  "-gux_no_idle"_XS8,    //10
+  "-gux_nosleep"_XS8,    //11
+  "-gux_nomsi"_XS8,      //12
+  "-gux_defer_usb2"_XS8, //13
+  "keepsyms=1"_XS8,      //14
+  "debug=0x100"_XS8,     //15
+  "kextlog=0xffff"_XS8,  //16
+  "-alcoff"_XS8,         //17
+  "-shikioff"_XS8,       //18
+  "nvda_drv=1"_XS8       //19
 };
 CONST CHAR16 *VBIOS_BIN = L"EFI\\CLOVER\\misc\\c0000.bin";
 
 INPUT_ITEM *InputItems = NULL;
 INTN TextStyle; //why global? It will be class SCREEN member
 
-UINT32 EncodeOptions(const XString& Options)
+UINT32 EncodeOptions(const XStringArray& Options)
 {
   UINT32 OptionsBits = 0;
   INTN Index;
@@ -79,7 +79,7 @@ UINT32 EncodeOptions(const XString& Options)
     return 0;
   }
   for (Index = 0; Index < NUM_OPT; Index++) {
-    if ( Options.ExistIn(ArgOptional[Index]) ) {
+    if ( Options.contains(ArgOptional[Index]) ) {
       OptionsBits |= (1 << Index);
       if (Index == 1) {
         OptionsBits &= ~1;
@@ -98,13 +98,13 @@ VOID DecodeOptions(REFIT_MENU_ITEM_BOOTNUM *Entry)
   }
   for (Index = 0; Index < INX_NVWEBON; Index++) { //not including INX_NVWEBON
     if (gSettings.OptionsBits & (1 << Index)) {
-      Entry->LoadOptions = AddLoadOption(Entry->LoadOptions, ArgOptional[Index]);
+      Entry->LoadOptions.AddID(ArgOptional[Index]);
     }
   }
   //remove unchecked options
   for (Index = 0; Index < INX_NVWEBON; Index++) { //not including INX_NVWEBON
     if ((gSettings.OptionsBits & (1 << Index)) == 0) {
-      Entry->LoadOptions = RemoveLoadOption(Entry->LoadOptions, ArgOptional[Index]);
+      Entry->LoadOptions.remove(ArgOptional[Index]);
     }
   }
 
@@ -115,14 +115,18 @@ VOID DecodeOptions(REFIT_MENU_ITEM_BOOTNUM *Entry)
       if (AsciiOSVersionToUint64(loaderEntry->OSVersion) >= AsciiOSVersionToUint64("10.12")) {
         gSettings.NvidiaWeb = TRUE;
       } else {
-        Entry->LoadOptions = AddLoadOption(loaderEntry->LoadOptions, ArgOptional[INX_NVWEBON]);
+        //Entry->LoadOptions = loaderEntry->LoadOptions;
+//        Entry->LoadOptions = Split<XStringArray>(loaderEntry->LoadOptions.ConcatAll(" "_XS8).wc_str(), " ");
+        Entry->LoadOptions.AddID(ArgOptional[INX_NVWEBON]);
       }
     }
     if ((gSettings.OptionsBits & OPT_NVWEBON) == 0) {
       if (AsciiOSVersionToUint64(loaderEntry->OSVersion) >= AsciiOSVersionToUint64("10.12")) {
         gSettings.NvidiaWeb = FALSE;
       } else {
-        Entry->LoadOptions = RemoveLoadOption(loaderEntry->LoadOptions, ArgOptional[INX_NVWEBON]);
+        //Entry->LoadOptions = loaderEntry->LoadOptions;
+//        Entry->LoadOptions = Split<XStringArray>(loaderEntry->LoadOptions.ConcatAll(" "_XS8).wc_str(), " ");
+        Entry->LoadOptions.removeIC(ArgOptional[INX_NVWEBON]);
       }
     }
   }

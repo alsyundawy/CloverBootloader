@@ -37,14 +37,16 @@
 #include "../refit/menu.h"
 #include "../refit/screen.h"
 #include "../libeg/XImage.h"
+#include "../refit/lib.h"
+#include "../gui/REFIT_MENU_SCREEN.h"
 
 //
 // Clover File location to boot from on removable media devices
 //
-#define CLOVER_MEDIA_FILE_NAME_IA32    L"\\EFI\\CLOVER\\CLOVERIA32.EFI"
-#define CLOVER_MEDIA_FILE_NAME_IA64    L"\\EFI\\CLOVER\\CLOVERIA64.EFI"
-#define CLOVER_MEDIA_FILE_NAME_X64     L"\\EFI\\CLOVER\\CLOVERX64.EFI"
-#define CLOVER_MEDIA_FILE_NAME_ARM     L"\\EFI\\CLOVER\\CLOVERARM.EFI"
+#define CLOVER_MEDIA_FILE_NAME_IA32    L"\\EFI\\CLOVER\\CLOVERIA32.EFI"_XSW
+#define CLOVER_MEDIA_FILE_NAME_IA64    L"\\EFI\\CLOVER\\CLOVERIA64.EFI"_XSW
+#define CLOVER_MEDIA_FILE_NAME_X64     L"\\EFI\\CLOVER\\CLOVERX64.EFI"_XSW
+#define CLOVER_MEDIA_FILE_NAME_ARM     L"\\EFI\\CLOVER\\CLOVERARM.EFI"_XSW
 
 #if   defined (MDE_CPU_IA32)
 #define CLOVER_MEDIA_FILE_NAME   CLOVER_MEDIA_FILE_NAME_IA32
@@ -60,7 +62,7 @@
 #endif
 
 #ifndef DEBUG_ALL
-#define DEBUG_SCAN_TOOL 1
+#define DEBUG_SCAN_TOOL 0
 #else
 #define DEBUG_SCAN_TOOL DEBUG_ALL
 #endif
@@ -71,13 +73,13 @@
 #define DBG(...) DebugLog(DEBUG_SCAN_TOOL, __VA_ARGS__)
 #endif
 
-STATIC BOOLEAN AddToolEntry(IN CONST CHAR16 *LoaderPath, IN CONST CHAR16 *FullTitle, IN CONST CHAR16 *LoaderTitle,
-                            IN REFIT_VOLUME *Volume, const XImage& Image,
-                            IN CHAR16 ShortcutLetter, IN CONST XString& Options)
+STATIC BOOLEAN AddToolEntry(IN CONST XStringW& LoaderPath, IN CONST CHAR16 *FullTitle, IN CONST CHAR16 *LoaderTitle,
+                            IN REFIT_VOLUME *Volume, const XIcon& Image,
+                            IN CHAR16 ShortcutLetter, IN CONST XStringArray& Options)
 {
   REFIT_MENU_ENTRY_LOADER_TOOL *Entry;
   // Check the loader exists
-  if ((LoaderPath == NULL) || (Volume == NULL) || (Volume->RootDir == NULL) ||
+  if ((LoaderPath.isEmpty()) || (Volume == NULL) || (Volume->RootDir == NULL) ||
       !FileExists(Volume->RootDir, LoaderPath)) {
     return FALSE;
   }
@@ -98,7 +100,7 @@ STATIC BOOLEAN AddToolEntry(IN CONST CHAR16 *LoaderPath, IN CONST CHAR16 *FullTi
   Entry->ShortcutLetter = ShortcutLetter;
   Entry->Image = Image;
 //  Entry->ImageHover = ImageHover;
-  Entry->LoaderPath = EfiStrDuplicate(LoaderPath);
+  Entry->LoaderPath = LoaderPath;
   Entry->DevicePath = FileDevicePath(Volume->DeviceHandle, Entry->LoaderPath);
   Entry->DevicePathString = FileDevicePathToStr(Entry->DevicePath);
   Entry->LoadOptions = Options;
@@ -107,12 +109,12 @@ STATIC BOOLEAN AddToolEntry(IN CONST CHAR16 *LoaderPath, IN CONST CHAR16 *FullTi
   Entry->AtDoubleClick = ActionEnter;
   Entry->AtRightClick = ActionHelp;
 
-  DBG("found tool %ls\n", LoaderPath);
+  DBG("found tool %ls\n", LoaderPath.s());
   MainMenu.AddMenuEntry(Entry, true);
   return TRUE;
 }
 
-STATIC VOID AddCloverEntry(IN CONST CHAR16 *LoaderPath, IN CONST CHAR16 *LoaderTitle, IN REFIT_VOLUME *Volume)
+STATIC VOID AddCloverEntry(IN CONST XStringW& LoaderPath, IN CONST CHAR16 *LoaderTitle, IN REFIT_VOLUME *Volume)
 {
   REFIT_MENU_ENTRY_CLOVER      *Entry;
   REFIT_MENU_ENTRY_CLOVER      *SubEntry;
@@ -128,7 +130,7 @@ STATIC VOID AddCloverEntry(IN CONST CHAR16 *LoaderPath, IN CONST CHAR16 *LoaderT
   Entry->ShortcutLetter = 'C';
   Entry->Image          = ThemeX.GetIcon(BUILTIN_ICON_FUNC_CLOVER);
   Entry->Volume = Volume;
-  Entry->LoaderPath      = EfiStrDuplicate(LoaderPath);
+  Entry->LoaderPath      = LoaderPath;
   Entry->VolName         = Volume->VolName;
   Entry->DevicePath      = FileDevicePath(Volume->DeviceHandle, Entry->LoaderPath);
   Entry->DevicePathString = FileDevicePathToStr(Entry->DevicePath);
@@ -160,21 +162,24 @@ STATIC VOID AddCloverEntry(IN CONST CHAR16 *LoaderPath, IN CONST CHAR16 *LoaderT
   SubEntry = Entry->getPartiallyDuplicatedEntry();
   if (SubEntry) {
     SubEntry->Title.SWPrintf("Add Clover boot options for all entries");
-    SubEntry->LoadOptions.SPrintf("BO-ADD");
+    SubEntry->LoadOptions.setEmpty();
+    SubEntry->LoadOptions.Add("BO-ADD");
     SubScreen->AddMenuEntry(SubEntry, true);
   }
 
   SubEntry = Entry->getPartiallyDuplicatedEntry();
   if (SubEntry) {
     SubEntry->Title.SWPrintf("Remove all Clover boot options");
-    SubEntry->LoadOptions.SPrintf("BO-REMOVE");
+    SubEntry->LoadOptions.setEmpty();
+    SubEntry->LoadOptions.Add("BO-REMOVE");
     SubScreen->AddMenuEntry(SubEntry, true);
   }
 
   SubEntry = Entry->getPartiallyDuplicatedEntry();
   if (SubEntry) {
     SubEntry->Title.SWPrintf("Print all UEFI boot options to log");
-    SubEntry->LoadOptions.SPrintf("BO-PRINT");
+    SubEntry->LoadOptions.setEmpty();
+    SubEntry->LoadOptions.Add("BO-PRINT");
     SubScreen->AddMenuEntry(SubEntry, true);
   }
 
@@ -194,8 +199,8 @@ VOID ScanTool(VOID)
 
   //    DBG("Scanning for tools...\n");
   if (!(ThemeX.HideUIFlags & HIDEUI_FLAG_SHELL)) {
-    if (!AddToolEntry(L"\\EFI\\CLOVER\\tools\\Shell64U.efi", NULL, L"UEFI Shell 64", SelfVolume, ThemeX.GetIcon(BUILTIN_ICON_TOOL_SHELL), 'S', ""_XS)) {
-      AddToolEntry(L"\\EFI\\CLOVER\\tools\\Shell64.efi", NULL, L"EFI Shell 64", SelfVolume, ThemeX.GetIcon(BUILTIN_ICON_TOOL_SHELL), 'S', ""_XS);
+    if (!AddToolEntry(L"\\EFI\\CLOVER\\tools\\Shell64U.efi"_XSW, NULL, L"UEFI Shell 64", SelfVolume, ThemeX.GetIcon(BUILTIN_ICON_TOOL_SHELL), 'S', NullXStringArray)) {
+      AddToolEntry(L"\\EFI\\CLOVER\\tools\\Shell64.efi"_XSW, NULL, L"EFI Shell 64", SelfVolume, ThemeX.GetIcon(BUILTIN_ICON_TOOL_SHELL), 'S', NullXStringArray);
     }
   }
 
@@ -234,7 +239,7 @@ VOID AddCustomTool(VOID)
   UINTN             VolumeIndex;
   REFIT_VOLUME      *Volume;
   CUSTOM_TOOL_ENTRY *Custom;
-  XImage          Image;
+  XIcon             Image;
   UINTN              i = 0;
 
 //  DBG("Custom tool start\n");
@@ -265,20 +270,14 @@ VOID AddCustomTool(VOID)
       }
 
       // skip volume if its kind is configured as disabled
-      if ((Volume->DiskKind == DISK_KIND_OPTICAL && (GlobalConfig.DisableFlags & VOLTYPE_OPTICAL)) ||
-          (Volume->DiskKind == DISK_KIND_EXTERNAL && (GlobalConfig.DisableFlags & VOLTYPE_EXTERNAL)) ||
-          (Volume->DiskKind == DISK_KIND_INTERNAL && (GlobalConfig.DisableFlags & VOLTYPE_INTERNAL)) ||
-          (Volume->DiskKind == DISK_KIND_FIREWIRE && (GlobalConfig.DisableFlags & VOLTYPE_FIREWIRE)))
+      if (((1ull<<Volume->DiskKind) & GlobalConfig.DisableFlags) != 0)
       {
         DBG("skipped because media is disabled\n");
         continue;
       }
 
       if (Custom->VolumeType != 0) {
-        if ((Volume->DiskKind == DISK_KIND_OPTICAL && ((Custom->VolumeType & VOLTYPE_OPTICAL) == 0)) ||
-            (Volume->DiskKind == DISK_KIND_EXTERNAL && ((Custom->VolumeType & VOLTYPE_EXTERNAL) == 0)) ||
-            (Volume->DiskKind == DISK_KIND_INTERNAL && ((Custom->VolumeType & VOLTYPE_INTERNAL) == 0)) ||
-            (Volume->DiskKind == DISK_KIND_FIREWIRE && ((Custom->VolumeType & VOLTYPE_FIREWIRE) == 0))) {
+        if (((1ull<<Volume->DiskKind) & Custom->VolumeType) == 0) {
           DBG("skipped because media is ignored\n");
           continue;
         }
@@ -308,10 +307,10 @@ VOID AddCustomTool(VOID)
         Image.LoadXImage(ThemeX.ThemeDir, Custom->ImagePath);
       }
       if (Image.isEmpty()) {
-        AddToolEntry(Custom->Path, Custom->FullTitle.wc_str(), Custom->Title.wc_str(), Volume, ThemeX.GetIcon(BUILTIN_ICON_TOOL_SHELL), Custom->Hotkey, Custom->Options);
+        AddToolEntry(Custom->Path, Custom->FullTitle.wc_str(), Custom->Title.wc_str(), Volume, ThemeX.GetIcon(BUILTIN_ICON_TOOL_SHELL), Custom->Hotkey, Custom->LoadOptions);
       } else {
       // Create a legacy entry for this volume
-        AddToolEntry(Custom->Path, Custom->FullTitle.wc_str(), Custom->Title.wc_str(), Volume, Image, Custom->Hotkey, Custom->Options);
+        AddToolEntry(Custom->Path, Custom->FullTitle.wc_str(), Custom->Title.wc_str(), Volume, Image, Custom->Hotkey, Custom->LoadOptions);
       }
       DBG("match!\n");
 //      break; // break scan volumes, continue scan entries -- why?

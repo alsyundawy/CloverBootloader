@@ -30,6 +30,8 @@
 //Slice - rewrite for UEFI with more functions like Copyright (c) 2003 Apple Computer
 #include "Platform.h"
 #include "b64cdecode.h"
+#include "plist.h"
+#include "../libeg/FloatLib.h"
 
 #ifndef DEBUG_ALL
 #define DEBUG_PLIST 0
@@ -45,44 +47,19 @@
 
 
 
-/* XML Tags */
-#define kXMLTagPList     "plist"
-#define kXMLTagDict      "dict"
-#define kXMLTagKey       "key"
-#define kXMLTagString    "string"
-#define kXMLTagInteger   "integer"
-#define kXMLTagData      "data"
-#define kXMLTagDate      "date"
-#define kXMLTagFalse     "false/"
-#define kXMLTagTrue      "true/"
-#define kXMLTagArray     "array"
-#define kXMLTagReference "reference"
-#define kXMLTagID        "ID="
-#define kXMLTagIDREF     "IDREF="
-
-
-struct Symbol {
-  UINTN         refCount;
-  struct Symbol *next;
-  CHAR8         string[1];
-};
-
-typedef struct Symbol Symbol, *SymbolPtr;
-
-
-
 SymbolPtr gSymbolsHead = NULL;
 TagPtr    gTagsFree = NULL;
 CHAR8* buffer_start = NULL;
 
 // Forward declarations
 EFI_STATUS ParseTagList( CHAR8* buffer, TagPtr * tag, UINT32 type, UINT32 empty, UINT32* lenPtr);
-EFI_STATUS ParseTagKey( char * buffer, TagPtr * tag,UINT32* lenPtr);
-EFI_STATUS ParseTagString(CHAR8* buffer, TagPtr * tag,UINT32* lenPtr);
-EFI_STATUS ParseTagInteger(CHAR8* buffer, TagPtr * tag,UINT32* lenPtr);
-EFI_STATUS ParseTagData(CHAR8* buffer, TagPtr * tag,UINT32* lenPtr);
-EFI_STATUS ParseTagDate(CHAR8* buffer, TagPtr * tag,UINT32* lenPtr);
-EFI_STATUS ParseTagBoolean(CHAR8* buffer, TagPtr * tag, UINT32 type,UINT32* lenPtr);
+EFI_STATUS ParseTagKey( char * buffer, TagPtr * tag, UINT32* lenPtr);
+EFI_STATUS ParseTagString(CHAR8* buffer, TagPtr * tag, UINT32* lenPtr);
+EFI_STATUS ParseTagInteger(CHAR8* buffer, TagPtr * tag, UINT32* lenPtr);
+EFI_STATUS ParseTagFloat(CHAR8* buffer, TagPtr * tag, UINT32* lenPtr);
+EFI_STATUS ParseTagData(CHAR8* buffer, TagPtr * tag, UINT32* lenPtr);
+EFI_STATUS ParseTagDate(CHAR8* buffer, TagPtr * tag, UINT32* lenPtr);
+EFI_STATUS ParseTagBoolean(CHAR8* buffer, TagPtr * tag, UINT32 type, UINT32* lenPtr);
 //defined in Platform.h
 //EFI_STATUS GetElement( TagPtr dict, INTN id,  TagPtr *dict1);
 //INTN GetTagCount( TagPtr dict );
@@ -135,22 +112,17 @@ XMLDecode(CHAR8* src)
   s = src;
   while (s <= src+len) /* Make sure the terminator is also copied */
   {
-    if ( *s == '&' )
-    {
+    if ( *s == '&' ) {
       BOOLEAN entFound = FALSE;
       UINTN i;
-
       s++;
-      for ( i = 0; i < sizeof(ents)/sizeof(ents[0]); i++)
-      {
-        if ( AsciiStrnCmp(s, ents[i].name, ents[i].nameLen) == 0 )
-        {
+      for (i = 0; i < sizeof(ents)/sizeof(ents[0]); i++) {
+        if ( strncmp(s, ents[i].name, ents[i].nameLen) == 0 ) {
           entFound = TRUE;
           break;
         }
       }
-      if ( entFound )
-      {
+      if ( entFound ) {
         *o++ = ents[i].value;
         s += ents[i].nameLen;
         continue;
@@ -367,7 +339,7 @@ EFI_STATUS XMLParseNextTag(CHAR8* buffer, TagPtr* tag, UINT32* lenPtr)
   }
 
   pos = length;
-  if (!AsciiStrnCmp(tagName, kXMLTagPList, 6)) {
+  if (!strncmp(tagName, kXMLTagPList, 6)) {
     length=0;
     Status=EFI_SUCCESS;
   }
@@ -382,7 +354,7 @@ EFI_STATUS XMLParseNextTag(CHAR8* buffer, TagPtr* tag, UINT32* lenPtr)
     DBG("end dict len=%d\n", length);
     Status = ParseTagList(buffer + pos, tag, kTagTypeDict, 1, &length);
   }
-  else if (!AsciiStrnCmp(tagName, kXMLTagDict " ", 5))
+  else if (!strncmp(tagName, kXMLTagDict " ", 5))
   {
     DBG("space dict len=%d\n", length);
     Status = ParseTagList(buffer + pos, tag, kTagTypeDict, 0, &length);
@@ -400,7 +372,7 @@ EFI_STATUS XMLParseNextTag(CHAR8* buffer, TagPtr* tag, UINT32* lenPtr)
     Status = ParseTagString(buffer + pos, tag, &length);
   }
    /***** string ****/
-  else if (!AsciiStrnCmp(tagName, kXMLTagString " ", 7))
+  else if (!strncmp(tagName, kXMLTagString " ", 7))
   {
     DBG("parse String len=%d\n", length);
     Status = ParseTagString(buffer + pos, tag, &length);
@@ -410,17 +382,25 @@ EFI_STATUS XMLParseNextTag(CHAR8* buffer, TagPtr* tag, UINT32* lenPtr)
   {
     Status = ParseTagInteger(buffer + pos, tag, &length);
   }
-  else if (!AsciiStrnCmp(tagName, kXMLTagInteger " ", 8))
+  else if (!strncmp(tagName, kXMLTagInteger " ", 8))
   {
     Status = ParseTagInteger(buffer + pos, tag, &length);
   }
-
+  /***** float ****/
+  else if (!AsciiStrCmp(tagName, kXMLTagFloat))
+  {
+    Status = ParseTagFloat(buffer + pos, tag, &length);
+  }
+  else if (!strncmp(tagName, kXMLTagFloat " ", 8))
+  {
+    Status = ParseTagFloat(buffer + pos, tag, &length);
+  }
   /***** data ****/
   else if (!AsciiStrCmp(tagName, kXMLTagData))
   {
     Status = ParseTagData(buffer + pos, tag, &length);
   }
-  else if (!AsciiStrnCmp(tagName, kXMLTagData " ", 5))
+  else if (!strncmp(tagName, kXMLTagData " ", 5))
   {
     Status = ParseTagData(buffer + pos, tag, &length);
   }
@@ -444,7 +424,7 @@ EFI_STATUS XMLParseNextTag(CHAR8* buffer, TagPtr* tag, UINT32* lenPtr)
   {
     Status = ParseTagList(buffer + pos, tag, kTagTypeArray, 0, &length);
   }
-  else if (!AsciiStrnCmp(tagName, kXMLTagArray " ", 6))
+  else if (!strncmp(tagName, kXMLTagArray " ", 6))
   {
     DBG("begin array len=%d\n", length);
     Status = ParseTagList(buffer + pos, tag, kTagTypeArray, 0, &length);
@@ -637,7 +617,7 @@ EFI_STATUS ParseTagString(CHAR8* buffer, TagPtr * tag,UINT32* lenPtr)
 //==========================================================================
 // ParseTagInteger
 
-EFI_STATUS ParseTagInteger(CHAR8* buffer, TagPtr * tag,UINT32* lenPtr)
+EFI_STATUS ParseTagInteger(CHAR8* buffer, TagPtr * tag, UINT32* lenPtr)
 {
   EFI_STATUS  Status;
   UINT32    length = 0;
@@ -647,7 +627,7 @@ EFI_STATUS ParseTagInteger(CHAR8* buffer, TagPtr * tag,UINT32* lenPtr)
   CHAR8*    val = buffer;
   TagPtr tmpTag;
 
-  Status = FixDataMatchingTag(buffer, kXMLTagInteger,&length);
+  Status = FixDataMatchingTag(buffer, kXMLTagInteger, &length);
   if (EFI_ERROR(Status)) {
     return Status;
   }
@@ -721,6 +701,43 @@ EFI_STATUS ParseTagInteger(CHAR8* buffer, TagPtr * tag,UINT32* lenPtr)
   tmpTag->offset = (UINT32)(buffer_start ? buffer - buffer_start: 0);
   tmpTag->tagNext = NULL;
 
+  *tag = tmpTag;
+  *lenPtr = length;
+  return EFI_SUCCESS;
+}
+
+//==========================================================================
+// ParseTagFloat
+
+EFI_STATUS ParseTagFloat(CHAR8* buffer, TagPtr * tag, UINT32* lenPtr)
+{
+  EFI_STATUS  Status;
+  UINT32      length = 0; //unused?
+//  BOOLEAN     negative = FALSE;
+//  CHAR8*      val = buffer;
+  TagPtr      tmpTag;
+  FlMix       fVar;
+  fVar.B.fNum = 0.f;
+  fVar.B.pad = 0;
+  
+  Status = FixDataMatchingTag(buffer, kXMLTagFloat, &length);
+  if (EFI_ERROR(Status)) {
+    return Status;
+  }
+  
+  tmpTag = NewTag();
+  if (tmpTag == NULL)  {
+    return EFI_OUT_OF_RESOURCES;
+  }
+//----
+  AsciiStrToFloat(buffer, NULL, &fVar.B.fNum);
+//----
+  tmpTag->type = kTagTypeFloat;
+  tmpTag->string = fVar.string;
+  tmpTag->tag = NULL;
+  tmpTag->offset = (UINT32)(buffer_start ? buffer - buffer_start: 0);
+  tmpTag->tagNext = NULL;
+  
   *tag = tmpTag;
   *lenPtr = length;
   return EFI_SUCCESS;
@@ -1082,7 +1099,7 @@ SymbolPtr FindSymbol(CHAR8 *tmpString, SymbolPtr *prevSymbol )
  else return FALSE
  */
 BOOLEAN
-IsPropertyTrue (
+IsPropertyTrue(
                 TagPtr Prop
                 )
 {
@@ -1097,7 +1114,7 @@ IsPropertyTrue (
  else return FALSE
  */
 BOOLEAN
-IsPropertyFalse (
+IsPropertyFalse(
                  TagPtr Prop
                  )
 {
@@ -1115,7 +1132,7 @@ IsPropertyFalse (
  <string>0x12abd</string>
  */
 INTN
-GetPropertyInteger (
+GetPropertyInteger(
                     TagPtr Prop,
                     INTN Default
                     )
@@ -1138,5 +1155,23 @@ GetPropertyInteger (
 //    return (INTN)AsciiStrDecimalToUintn (Prop->string);
     return (INTN)AsciiStrDecimalToUintn((Prop->string[0] == '+') ? (Prop->string + 1) : Prop->string);
   }
+  return Default;
+}
+
+float GetPropertyFloat (TagPtr Prop, float Default)
+{
+  if (Prop == NULL) {
+    return Default;
+  }
+  if (Prop->type == kTagTypeFloat) {
+    FlMix       fVar;
+    fVar.string = Prop->string;
+    return fVar.B.fNum; //this is union char* or float
+  } else if ((Prop->type == kTagTypeString) && Prop->string) {
+    float fVar = 0.f;
+    if(!AsciiStrToFloat(Prop->string, NULL, &fVar)) //if success then return 0
+      return fVar;
+  }
+  
   return Default;
 }

@@ -66,8 +66,6 @@ NSComboBoxDataSource {
       super.viewDidLoad()
     }
     self.loaded = true
-    
-
     self.view.window?.title = self.view.window!.title.locale
     let settingVC = AppSD.settingsWC?.contentViewController as? SettingsViewController
     settingVC?.themeUserCBox.isEnabled = false
@@ -715,6 +713,7 @@ NSComboBoxDataSource {
     let disks : NSDictionary = getAlldisks()
     let bootPartition = findBootPartitionDevice()
     let diskSorted : [String] = (disks.allKeys as! [String]).sorted()
+
     for d in diskSorted {
       let disk : String = d
       if isWritable(diskOrMtp: disk) && !kBannedMedia.contains(getVolumeName(from: disk) ?? "") {
@@ -724,7 +723,7 @@ NSComboBoxDataSource {
         let mp : String = getMountPoint(from: disk) ?? kNotAvailable.locale
         let parentDiskName : String = getMediaName(from: getBSDParent(of: disk) ?? "") ?? kNotAvailable.locale
         
-        let supportedFS = ["msdos", "fat32", "exfat", "hfs"]
+        let supportedFS = ["msdos", "fat16", "fat32", "exfat", "hfs"]
         
         if supportedFS.contains(fs) {
           self.targetPop.addItem(withTitle: "\(disk)\t\(name), \("mount point".locale): \(mp), \(fs.uppercased()), \(psm): (\(parentDiskName))")
@@ -758,37 +757,49 @@ NSComboBoxDataSource {
   @IBAction func targetPopPressed(_ sender: FWPopUpButton!) {
     if let disk = sender?.selectedItem?.representedObject as? String {
       if !isMountPoint(path: disk) {
-        //DispatchQueue.global(qos: .background).async {
-        let cmd = "diskutil mount \(disk)"
-        let msg = String(format: "Clover wants to mount %@", disk)
-        let script = "do shell script \"\(cmd)\" with prompt \"\(msg)\" with administrator privileges"
-        
-        let task = Process()
-        
-        if #available(OSX 10.12, *) {
-          task.launchPath = "/usr/bin/osascript"
-          task.arguments = ["-e", script]
-        } else {
-          task.launchPath = "/usr/sbin/diskutil"
-          task.arguments = ["mount", disk]
-        }
-        
-        task.terminationHandler = { t in
-          if t.terminationStatus == 0 {
-            if isMountPoint(path: disk) {
-              self.targetVolume = getMountPoint(from: disk)
+        self.installButton.isEnabled = false
+        DispatchQueue.global(priority: .background).async(execute: { () -> Void in
+          let cmd = "diskutil mount \(disk)"
+          let msg = String(format: "Clover wants to mount %@", disk)
+          let script = "do shell script \"\(cmd)\" with prompt \"\(msg)\" with administrator privileges"
+          
+          let task = Process()
+          
+          if #available(OSX 10.12, *) {
+            task.launchPath = "/usr/bin/osascript"
+            task.arguments = ["-e", script]
+          } else {
+            task.launchPath = "/usr/sbin/diskutil"
+            task.arguments = ["mount", disk]
+          }
+          
+          task.terminationHandler = { t in
+            DispatchQueue.main.async {
+              self.view.window?.level = .floating
+              self.view.window?.makeKeyAndOrderFront(nil)
+              self.view.window?.level = .normal
+            }
+            if t.terminationStatus == 0 {
+              if isMountPoint(path: disk) {
+                DispatchQueue.main.async {
+                  self.targetVolume = getMountPoint(from: disk)
+                  self.populateTargets()
+                  self.showInstalledThemes(self.installedThemesCheckBox)
+                }
+              }
               DispatchQueue.main.async {
-                self.populateTargets()
+                self.installButton.isEnabled = true
+              }
+            } else {
+              DispatchQueue.main.async {
+                NSSound.beep()
+                self.installButton.isEnabled = true
                 self.showInstalledThemes(self.installedThemesCheckBox)
               }
             }
-            DispatchQueue.main.async { self.view.window?.makeKeyAndOrderFront(nil) }
-          } else {
-            NSSound.beep()
-            self.showInstalledThemes(self.installedThemesCheckBox)
           }
-        }
-        task.launch()
+          task.launch()
+        })
         //}
       } else {
         self.targetVolume = getMountPoint(from: disk)
@@ -851,6 +862,7 @@ final class ThemeManagerWC: NSWindowController, NSWindowDelegate {
     self.window = nil
     self.close()
     AppSD.themeManagerWC = nil // remove a strong reference
+    AppSD.setActivationPolicy()
     return true
   }
 }

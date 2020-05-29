@@ -86,19 +86,20 @@ struct ACPI_DROP_TABLE
   UINT32          Length;
   UINT64          TableId;
   INPUT_ITEM      MenuItem;
+  BOOLEAN         OtherOS;
 };
 
 typedef struct CUSTOM_LOADER_ENTRY CUSTOM_LOADER_ENTRY;
 struct CUSTOM_LOADER_ENTRY {
   CUSTOM_LOADER_ENTRY     *Next;
   CUSTOM_LOADER_ENTRY     *SubEntries;
-  XImage                  Image;
-  XImage                  DriveImage;
+  XIcon                  Image;
+  XIcon                  DriveImage;
   CONST CHAR16            *ImagePath;
   CONST CHAR16            *DriveImagePath;
   CONST CHAR16            *Volume;
-  CONST CHAR16            *Path;
-  XString                  Options;
+  XStringW                Path;
+  XStringArray            LoadOptions;
 
   XStringW FullTitle;
   XStringW Title;
@@ -114,7 +115,7 @@ struct CUSTOM_LOADER_ENTRY {
   EFI_GRAPHICS_OUTPUT_BLT_PIXEL BootBgColor;
   KERNEL_AND_KEXT_PATCHES KernelAndKextPatches;
 
-  CUSTOM_LOADER_ENTRY() : Next(0), SubEntries(0), ImagePath(0), DriveImagePath(0), Volume(0), Path(0), Settings(0), Hotkey(0), CommonSettings(0), Flags(0), Type(0), VolumeType(0),
+  CUSTOM_LOADER_ENTRY() : Next(0), SubEntries(0), ImagePath(0), DriveImagePath(0), Volume(0), Settings(0), Hotkey(0), CommonSettings(0), Flags(0), Type(0), VolumeType(0),
                           KernelScan(0), CustomBoot(0), BootBgColor({0,0,0,0})
 						{ memset(&KernelAndKextPatches, 0, sizeof(KernelAndKextPatches)); }
 
@@ -127,8 +128,8 @@ struct CUSTOM_LOADER_ENTRY {
 typedef struct CUSTOM_LEGACY_ENTRY CUSTOM_LEGACY_ENTRY;
 struct CUSTOM_LEGACY_ENTRY {
   CUSTOM_LEGACY_ENTRY   *Next;
-  XImage                Image;
-  XImage                DriveImage;
+  XIcon                Image;
+  XIcon                DriveImage;
   CONST CHAR16          *ImagePath;
   CONST CHAR16          *DriveImagePath;
   CONST CHAR16          *Volume;
@@ -143,11 +144,11 @@ struct CUSTOM_LEGACY_ENTRY {
 typedef struct CUSTOM_TOOL_ENTRY CUSTOM_TOOL_ENTRY;
 struct CUSTOM_TOOL_ENTRY {
   CUSTOM_TOOL_ENTRY *Next;
-  XImage            Image;
+  XIcon            Image;
   CHAR16            *ImagePath;
   CHAR16            *Volume;
-  CHAR16            *Path;
-  XString           Options;
+  XStringW          Path;
+  XStringArray      LoadOptions;
   XStringW          FullTitle;
   XStringW          Title;
   CHAR16            Hotkey;
@@ -165,7 +166,8 @@ typedef enum {
   kTagTypeDate,
   kTagTypeFalse,
   kTagTypeTrue,
-  kTagTypeArray
+  kTagTypeArray,
+  kTagTypeFloat
 } TAG_TYPE;
 
 typedef struct DEV_PROPERTY DEV_PROPERTY; //yyyy
@@ -346,7 +348,7 @@ typedef struct {
   UINTN                   PatchVBiosBytesCount;
   BOOLEAN                 InjectEDID;
   BOOLEAN                 LpcTune;
-  UINT16                  DropOEM_DSM;
+  UINT16                  DropOEM_DSM; //vacant
   UINT8                   *CustomEDID;
   UINT16                  CustomEDIDsize;
   UINT16                  EdidFixHorizontalSyncPulseWidth;
@@ -612,12 +614,12 @@ extern CHAR16*       DsdtsList[20];
 extern UINTN DsdtsNum;
 extern UINTN ThemesNum;
 extern UINTN ConfigsNum;
-extern INTN                     ScrollButtonsHeight;
-extern INTN    ScrollBarDecorationsHeight;
-extern INTN    ScrollScrollDecorationsHeight;
-extern INTN LayoutBannerOffset;
-extern INTN LayoutButtonOffset;
-extern INTN LayoutTextOffset;
+//extern INTN    ScrollButtonsHeight;
+//extern INTN    ScrollBarDecorationsHeight;
+//extern INTN    ScrollScrollDecorationsHeight;
+//extern INTN LayoutBannerOffset;
+//extern INTN LayoutButtonOffset;
+//extern INTN LayoutTextOffset;
 // this should go in a globals, not in settings
 
 extern INTN                            OldChosenTheme;
@@ -633,7 +635,7 @@ extern HDA_PROPERTIES                 gAudios[];
 extern UINTN                          NGFX;
 extern UINTN                          NHDA;
 extern CONST CHAR16						 **SystemPlists;
-extern CONST CHAR16                        **InstallPlists;
+extern CONST CHAR16            **InstallPlists;
 extern CONST CHAR16						 **RecoveryPlists;
 //extern UINT16                         gCPUtype;
 extern SETTINGS_DATA                  gSettings;
@@ -648,8 +650,8 @@ extern UINTN                           gEvent;
 
 extern UINT16                          gBacklightLevel;
 
-extern BOOLEAN                         defDSM;
-extern UINT16                          dropDSM;
+//extern BOOLEAN                         defDSM;
+//extern UINT16                          dropDSM;
 
 extern TagPtr                          gConfigDict[];
 
@@ -677,6 +679,39 @@ extern EFI_GUID                       gUuid;
 
 extern EMU_VARIABLE_CONTROL_PROTOCOL *gEmuVariableControl;
 
+
+//
+// config module
+//
+
+typedef struct {
+  INTN        Timeout;
+  UINTN       DisableFlags; //to disable some volume types (optical, firewire etc)
+  BOOLEAN     TextOnly;
+  BOOLEAN     Quiet;
+  BOOLEAN     LegacyFirst;
+  BOOLEAN     NoLegacy;
+  BOOLEAN     DebugLog;
+  BOOLEAN     FastBoot;
+  BOOLEAN     NeverHibernate;
+  BOOLEAN     StrictHibernate;
+  BOOLEAN     RtcHibernateAware;
+  BOOLEAN     HibernationFixup;
+  BOOLEAN     SignatureFixup;
+  CHAR16      *Theme;
+  CHAR16      *ScreenResolution;
+  INTN        ConsoleMode;
+  BOOLEAN     CustomIcons;
+  INTN        IconFormat;
+  BOOLEAN     NoEarlyProgress;
+  INT32       Timezone;
+  BOOLEAN     ShowOptimus;
+  INTN        Codepage;
+  INTN        CodepageSize;
+} REFIT_CONFIG;
+
+
+extern REFIT_CONFIG GlobalConfig;
 
 
 EFI_STATUS
@@ -719,8 +754,8 @@ VOID
 GetDevices(VOID);
 
 
-CONST CHAR16
-*GetOSIconName (
+CONST XStringW
+GetOSIconName (
   IN  CONST CHAR8 *OSVersion
   );
 
@@ -743,8 +778,8 @@ GetUserSettings (
 
 EFI_STATUS
 InitTheme (
-  BOOLEAN  UseThemeDefinedInNVRam,
-  EFI_TIME *Time
+  BOOLEAN  UseThemeDefinedInNVRam //,
+//  EFI_TIME *Time
   );
 
 CHAR16*

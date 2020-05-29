@@ -221,10 +221,10 @@ void XImage::CopyScaled(const XImage& Image, float scale)
     {
       int lx = (int)(x / scale);
       float dx = x - lx * scale;
-      int a01 = (x == 0) ? 0 : -Pixel;
-      int a10 = (y == 0) ? 0 : -Row;
-      int a21 = (x == W - 1) ? 0 : Pixel;
-      int a12 = (y == H - 1) ? 0 : Row;
+      int a01 = (lx == 0) ? 0 : -Pixel;
+      int a10 = (ly == 0) ? 0 : -Row;
+      int a21 = (lx == W - 1) ? 0 : Pixel;
+      int a12 = (ly == H - 1) ? 0 : Row;
       EFI_GRAPHICS_OUTPUT_BLT_PIXEL& dst = *GetPixelPtr(x, y);
       dst.Blue = Smooth(&Source[lx + ly * SrcWidth].Blue, a01, a10, a21, a12, dx, dy, scale);
       dst.Green = Smooth(&Source[lx + ly * SrcWidth].Green, a01, a10, a21, a12, dx, dy, scale);
@@ -238,7 +238,7 @@ void XImage::CopyScaled(const XImage& Image, float scale)
  * Lowest means final image is opaque
  * else transparency will be multiplied
  */
-void XImage::Compose(INTN PosX, INTN PosY, const XImage& TopImage, bool Lowest)
+void XImage::Compose(INTN PosX, INTN PosY, const XImage& TopImage, bool Lowest, float topScale)
 {
   EG_RECT OutPlace;
   OutPlace.XPos = PosX;
@@ -251,7 +251,7 @@ void XImage::Compose(INTN PosX, INTN PosY, const XImage& TopImage, bool Lowest)
   Area.YPos = 0;
   Area.Width = TopImage.GetWidth();
   Area.Height = TopImage.GetHeight();
-  Compose(OutPlace, Area, TopImage, Lowest, 0.f);
+  Compose(OutPlace, Area, TopImage, Lowest, topScale);
 }
 // TopScale is for scaling TopImage. = 0.f means no scale or = 1.f
 // InPlace is a place in TopImage before scaling
@@ -261,6 +261,11 @@ void XImage::Compose(const EG_RECT& OutPlace, const EG_RECT& InPlace, const XIma
   INTN PosY = InPlace.YPos;
   INTN WArea = InPlace.Width;
   INTN HArea = InPlace.Height;
+  bool gray = false;
+  if (TopScale < 0) {
+    gray = true;
+    TopScale = -TopScale;
+  }
   XImage Top2;
   if (TopScale != 0.f && TopScale != 1.f) {
     Top2.setSizeInPixels((UINTN)(TopImage.GetWidth() * TopScale), (UINTN)(TopImage.GetHeight() * TopScale));
@@ -306,6 +311,13 @@ void XImage::Compose(const EG_RECT& OutPlace, const EG_RECT& InPlace, const XIma
 
         Temp = (CompPtr->Red * TempAlpha) + (Top.GetPixel(x + PosX, y + PosY).Red * TopAlpha);
         CompPtr->Red = (UINT8)(Temp / FinalAlpha);
+      
+        if (gray && (TopAlpha != 0)) {
+          Temp = ((UINT32)CompPtr->Blue + 2 * (UINT32)CompPtr->Red + 4 * (UINT32)CompPtr->Green) / 7;
+          CompPtr->Blue = (UINT8)Temp;
+          CompPtr->Red = (UINT8)Temp;
+          CompPtr->Green = (UINT8)Temp;
+        }
       }
 
       if (Lowest) {

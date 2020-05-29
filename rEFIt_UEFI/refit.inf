@@ -42,6 +42,7 @@
   include/Handle.h
   include/OneLinerMacros.h
   include/Pci.h
+  include/XToolsConf.h
   refit/main.cpp
   refit/icns.cpp
   refit/lib.cpp
@@ -125,6 +126,7 @@
   Platform/Posix/strlen.cpp
   Platform/Posix/wchar.h
   Platform/Posix/wchar.cpp
+  Platform/Posix/abort.h
   Platform/Posix/abort.cpp
   Platform/AcpiPatcher.h
   Platform/AcpiPatcher.cpp
@@ -221,13 +223,11 @@
   Platform/sound.cpp
   Platform/StartupSound.cpp
   Platform/StartupSound.h
-  Platform/sse3_patcher.h
-  Platform/sse3_5_patcher.h
+ # Platform/sse3_patcher.h
+ # Platform/sse3_5_patcher.h
 	Platform/VersionString.cpp
 	Platform/VersionString.h
   ../Version.h
-  cpp_util/panic.h
-  cpp_util/panic.cpp
   cpp_util/memory.cpp
   cpp_util/globals_ctor.cpp
   cpp_util/globals_ctor.h
@@ -242,15 +242,12 @@
   cpp_foundation/unicode_conversions.h
   cpp_foundation/XArray.h
   cpp_foundation/XObjArray.h
+  cpp_foundation/XStringAbstract.h
   cpp_foundation/XString.cpp
   cpp_foundation/XString.h
   cpp_foundation/XStringArray.cpp
   cpp_foundation/XStringArray.h
-  cpp_foundation/XStringW.cpp
-  cpp_foundation/XStringW.h
-  cpp_foundation/XStringWArray.cpp
-  cpp_foundation/XStringWArray.h
-  cpp_foundation/XToolsCommon.cpp
+  cpp_foundation/XStringArray.cpp
   cpp_foundation/XToolsCommon.h
 #  cpp_foundation/XUINTN.cpp
 #  cpp_foundation/XUINTN.h
@@ -277,10 +274,9 @@
   cpp_unit_test/XObjArray_tests.h
   cpp_unit_test/XString_test.cpp
   cpp_unit_test/XString_test.h
-  cpp_unit_test/XStringW_test.cpp
-  cpp_unit_test/XStringW_test.h
-  cpp_unit_test/XStringWArray_test.cpp
-  cpp_unit_test/XStringWArray_test.h
+  cpp_unit_test/XStringArray_test.cpp
+  cpp_unit_test/XStringArray_test.h
+  cpp_unit_test/XToolsCommon_test.h
 #  cpp_unit_test/XUINTN_test.cpp
 #  cpp_unit_test/XUINTN_test.h
 

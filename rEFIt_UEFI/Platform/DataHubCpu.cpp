@@ -139,6 +139,8 @@ LogDataHub(IN  EFI_GUID *TypeGuid,
   return Status;
 }
 
+
+
 // SetVariablesForOSX
 /** Installs our runtime services overrides. */
 /** Original runtime services. */
@@ -397,6 +399,11 @@ SetVariablesForOSX(LOADER_ENTRY *Entry)
       DeleteNvramVariable(L"previous-system-uuid", &gEfiAppleBootGuid);
     }
   }
+  
+  //one more variable can be set for 10.15.4
+  //sudo nvram wake-failure=%00%00%00%00%00
+  LangLen = 0;
+  AddNvramVariable(L"wake-failure", &gEfiAppleBootGuid, Attributes, 5, &LangLen);
 
   return EFI_SUCCESS;
 }

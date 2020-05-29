@@ -9,6 +9,8 @@
 
 #include "kernel_patcher.h"
 
+#define OLD_METHOD 0
+
 
 #ifndef DEBUG_ALL
 #define KEXT_DEBUG 0
@@ -23,16 +25,16 @@
 #endif
 
 // runtime debug
-#define DBG_RT(entry, ...)    if ((entry != NULL) && (entry->KernelAndKextPatches != NULL) && entry->KernelAndKextPatches->KPDebug) { printf(__VA_ARGS__); }
+#define DBG_RT(...)    if ((KernelAndKextPatches != NULL) && KernelAndKextPatches->KPDebug) { printf(__VA_ARGS__); }
 
 //
 // Searches Source for Search pattern of size SearchSize
 // and returns the number of occurences.
 //
-UINTN SearchAndCount(UINT8 *Source, UINT64 SourceSize, UINT8 *Search, UINTN SearchSize)
+UINTN SearchAndCount(const UINT8 *Source, UINT64 SourceSize, const UINT8 *Search, UINTN SearchSize)
 {
-  UINTN     NumFounds = 0;
-  UINT8     *End = Source + SourceSize;
+  UINTN        NumFounds = 0;
+  const UINT8  *End = Source + SourceSize;
   
   while (Source < End) {
     if (CompareMem(Source, Search, SearchSize) == 0) {
@@ -52,10 +54,11 @@ UINTN SearchAndCount(UINT8 *Source, UINT64 SourceSize, UINT8 *Search, UINTN Sear
 // Replace should have the same size as Search.
 // Returns number of replaces done.
 //
-UINTN SearchAndReplace(UINT8 *Source, UINT64 SourceSize, UINT8 *Search, UINTN SearchSize, UINT8 *Replace, INTN MaxReplaces)
+UINTN SearchAndReplace(UINT8 *Source, UINT64 SourceSize, const UINT8 *Search, UINTN SearchSize, const UINT8 *Replace, INTN MaxReplaces)
 {
   UINTN     NumReplaces = 0;
   BOOLEAN   NoReplacesRestriction = MaxReplaces <= 0;
+//  UINT8     *Begin = Source;
   UINT8     *End = Source + SourceSize;
   if (!Source || !Search || !Replace || !SearchSize) {
     return 0;
@@ -63,6 +66,7 @@ UINTN SearchAndReplace(UINT8 *Source, UINT64 SourceSize, UINT8 *Search, UINTN Se
   
   while ((Source < End) && (NoReplacesRestriction || (MaxReplaces > 0))) {
     if (CompareMem(Source, Search, SearchSize) == 0) {
+ //     printf("  found pattern at %llx\n", (UINTN)(Source - Begin));
       CopyMem(Source, Replace, SearchSize);
       NumReplaces++;
       MaxReplaces--;
@@ -74,15 +78,17 @@ UINTN SearchAndReplace(UINT8 *Source, UINT64 SourceSize, UINT8 *Search, UINTN Se
   return NumReplaces;
 }
 
-BOOLEAN CompareMemMask(UINT8 *Source, UINT8 *Search, UINT8 *Mask, UINTN SearchSize)
+BOOLEAN CompareMemMask(const UINT8 *Source, const UINT8 *Search, UINTN SearchSize, const UINT8 *Mask, UINTN MaskSize)
 {
   UINT8 M;
-  UINTN Ind;
-  if (!Mask) {
+ 
+  if (!Mask || MaskSize == 0) {
     return !CompareMem(Source, Search, SearchSize);
   }
-  for (Ind = 0; Ind < SearchSize; Ind++) {
-    M = *Mask++;
+  for (UINTN Ind = 0; Ind < SearchSize; Ind++) {
+    if (Ind < MaskSize)
+      M = *Mask++;
+    else M = 0xFF;
     if ((*Source++ & M) != (*Search++ & M)) {
       return FALSE;
     }
@@ -90,23 +96,83 @@ BOOLEAN CompareMemMask(UINT8 *Source, UINT8 *Search, UINT8 *Mask, UINTN SearchSi
   return TRUE;
 }
 
-VOID CopyMemMask(UINT8 *Dest, UINT8 *Replace, UINT8 *Mask, UINTN SearchSize)
+VOID CopyMemMask(UINT8 *Dest, const UINT8 *Replace, const UINT8 *Mask, UINTN SearchSize)
 {
   UINT8 M, D;
-  UINTN Ind;
-  if (!Mask) {
-    CopyMem(Dest, Replace, SearchSize);
+  // the procedure is called from SearchAndReplaceMask with own check but for future it is better to check twice
+  if (!Dest || !Replace) { 
     return;
   }
-  for (Ind = 0; Ind < SearchSize; Ind++) {
+
+  if (!Mask) {
+    CopyMem(Dest, Replace, SearchSize); //old behavior
+    return;
+  }
+  for (UINTN Ind = 0; Ind < SearchSize; Ind++) {
     M = *Mask++;
     D = *Dest;
     *Dest++ = ((D ^ *Replace++) & M) ^ D;
   }
 }
 
-UINTN SearchAndReplaceMask(UINT8 *Source, UINT64 SourceSize, UINT8 *Search, UINT8 *MaskSearch, UINTN SearchSize,
-                       UINT8 *Replace, UINT8 *MaskReplace, INTN MaxReplaces)
+// search a pattern like
+// call task or jmp address
+//return the address next to the command
+// 0 if not found
+UINTN FindRelative32(const UINT8 *Source, UINTN Start, UINTN SourceSize, UINTN taskLocation)
+{
+  INT32 Offset; //can be negative, so 0xFFFFFFFF == -1
+  for (UINTN i = Start; i < Start + SourceSize - 4; ++i) {
+    Offset = (INT32)((UINT32)Source[i] + ((UINT32)Source[i+1]<<8) + ((UINT32)Source[i+2]<<16) + ((UINT32)Source[i+3]<<24)); //should not use *(UINT32*) because of alignment
+    if (taskLocation == i + Offset + 4) {
+      return (i+4);
+    }
+  }
+  return 0;
+}
+
+UINTN FindSection(const UINT8 *Source, UINTN len, const UINT8* seg, const UINT8* sec)
+{
+  BOOLEAN eq;
+  
+  for (UINTN i = 0x20; i < len; i++) {
+    eq = TRUE;
+    for (UINTN j = 0; j < 16 && (sec[j] != 0); j++) {
+      if (Source[i + j] != sec[j]) {
+        eq = FALSE;
+        break;
+      }
+    }
+    if (eq) {
+      for (UINTN j = 0; j < 16 && (seg[j] != 0); j++) {
+        if (Source[i + 0x10 + j] != seg[j]) {
+          eq = FALSE;
+          break;
+        }
+      }
+      if (eq)
+        return i + 16;
+    }
+  }
+  return 0;
+}
+
+UINTN FindMemMask(const UINT8 *Source, UINTN SourceSize, const UINT8 *Search, UINTN SearchSize, const UINT8 *MaskSearch, UINTN MaskSize)
+{
+  if (!Source || !Search || !SearchSize) {
+    return KERNEL_MAX_SIZE;
+  }
+
+  for (UINTN i = 0; i < SourceSize - SearchSize; ++i) {
+    if (CompareMemMask(&Source[i], Search, SearchSize, MaskSearch, MaskSize)) {
+      return i;
+    }
+  }
+  return KERNEL_MAX_SIZE;
+}
+
+UINTN SearchAndReplaceMask(UINT8 *Source, UINT64 SourceSize, const UINT8 *Search, const UINT8 *MaskSearch, UINTN SearchSize,
+                       const UINT8 *Replace, const UINT8 *MaskReplace, INTN MaxReplaces)
 {
   UINTN     NumReplaces = 0;
   BOOLEAN   NoReplacesRestriction = MaxReplaces <= 0;
@@ -115,7 +181,7 @@ UINTN SearchAndReplaceMask(UINT8 *Source, UINT64 SourceSize, UINT8 *Search, UINT
     return 0;
   }
   while ((Source < End) && (NoReplacesRestriction || (MaxReplaces > 0))) {
-    if (CompareMemMask(Source, Search, MaskSearch, SearchSize)) {
+    if (CompareMemMask((const UINT8 *)Source, Search, SearchSize, MaskSearch, SearchSize)) {
       CopyMemMask(Source, Replace, MaskReplace, SearchSize);
       NumReplaces++;
       MaxReplaces--;
@@ -180,8 +246,8 @@ UINTN SearchAndReplaceTxt(UINT8 *Source, UINT64 SourceSize, UINT8 *Search, UINTN
     if (!Pos) {
       break;
     }
-    CopyMem (Pos, Replace, SearchSize);
-    SetMem (Pos + SearchSize, Skip, 0x20); //fill skip places with spaces
+    CopyMem(Pos, Replace, SearchSize);
+    SetMem(Pos + SearchSize, Skip, 0x20); //fill skip places with spaces
     NumReplaces++;
     MaxReplaces--;
     Source = FirstMatch + SearchSize + Skip;
@@ -213,17 +279,17 @@ VOID ExtractKextBundleIdentifier(CHAR8 *Plist)
   
   while (*Tag != '\0') {
     
-    if (AsciiStrnCmp(Tag, "<dict>", 6) == 0) {
+    if (strncmp(Tag, "<dict>", 6) == 0) {
       // opening dict
       DictLevel++;
       Tag += 6;
       
-    } else if (AsciiStrnCmp(Tag, "</dict>", 7) == 0) {
+    } else if (strncmp(Tag, "</dict>", 7) == 0) {
       // closing dict
       DictLevel--;
       Tag += 7;
       
-    } else if (DictLevel == 1 && AsciiStrnCmp(Tag, "<key>CFBundleIdentifier</key>", 29) == 0) {
+    } else if (DictLevel == 1 && strncmp(Tag, "<key>CFBundleIdentifier</key>", 29) == 0) {
       // BundleIdentifier is next <string>...</string>
       BIStart = AsciiStrStr(Tag + 29, "<string>");
       if (BIStart != NULL) {
@@ -277,7 +343,7 @@ CHAR8 ATIKextBundleId[2][64];
 //
 // Inits patcher: prepares ATIKextBundleIds.
 //
-VOID ATIConnectorsPatchInit(LOADER_ENTRY *Entry)
+VOID LOADER_ENTRY::ATIConnectorsPatchInit()
 {
   //
   // prepar boundle ids
@@ -288,13 +354,13 @@ VOID ATIConnectorsPatchInit(LOADER_ENTRY *Entry)
               sizeof(ATIKextBundleId[0]),
 		   "com.apple.kext.ATI%sController", // when it was AsciiSPrint, %a was used with KPATIConnectorsController which is CHAR16 ??? Result is printing stop at first char <= 255
            //now it is CHAR8*
-              Entry->KernelAndKextPatches->KPATIConnectorsController
+              KernelAndKextPatches->KPATIConnectorsController
               );
   // ML
   snprintf(ATIKextBundleId[1],
               sizeof(ATIKextBundleId[1]),
 		   "com.apple.kext.AMD%sController", // when it was AsciiSPrint, %a was used with KPATIConnectorsController which is CHAR16 ??? Result is printing stop at first char <= 255
-              Entry->KernelAndKextPatches->KPATIConnectorsController
+              KernelAndKextPatches->KPATIConnectorsController
               );
   
   ATIConnectorsPatchInited = TRUE;
@@ -307,16 +373,17 @@ VOID ATIConnectorsPatchInit(LOADER_ENTRY *Entry)
 //
 // Registers kexts that need force-load during WithKexts boot.
 //
-VOID ATIConnectorsPatchRegisterKexts(FSINJECTION_PROTOCOL *FSInject, FSI_STRING_LIST *ForceLoadKexts, LOADER_ENTRY *Entry)
+VOID LOADER_ENTRY::ATIConnectorsPatchRegisterKexts(void *FSInject_v, void *ForceLoadKexts_v)
 {
-  
+  FSINJECTION_PROTOCOL *FSInject = (FSINJECTION_PROTOCOL *)FSInject_v;
+  FSI_STRING_LIST *ForceLoadKexts = (FSI_STRING_LIST *)ForceLoadKexts_v;
   // for future?
   FSInject->AddStringToList(ForceLoadKexts,
-                            PoolPrint(L"\\AMD%aController.kext\\Contents\\Info.plist", Entry->KernelAndKextPatches->KPATIConnectorsController)
+                            PoolPrint(L"\\AMD%aController.kext\\Contents\\Info.plist", KernelAndKextPatches->KPATIConnectorsController)
                             );
   // Lion, ML, SnowLeo 10.6.7 2011 MBP
   FSInject->AddStringToList(ForceLoadKexts,
-                            PoolPrint(L"\\ATI%aController.kext\\Contents\\Info.plist", Entry->KernelAndKextPatches->KPATIConnectorsController)
+                            PoolPrint(L"\\ATI%aController.kext\\Contents\\Info.plist", KernelAndKextPatches->KPATIConnectorsController)
                             );
   // SnowLeo
   FSInject->AddStringToList(ForceLoadKexts, L"\\ATIFramebuffer.kext\\Contents\\Info.plist");
@@ -334,40 +401,38 @@ VOID ATIConnectorsPatchRegisterKexts(FSINJECTION_PROTOCOL *FSInject, FSI_STRING_
 //
 // Patch function.
 //
-VOID ATIConnectorsPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize, LOADER_ENTRY *Entry)
+VOID LOADER_ENTRY::ATIConnectorsPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize)
 {
   
   UINTN   Num = 0;
   
-	DBG_RT(Entry, "\nATIConnectorsPatch: driverAddr = %s, driverSize = %x\nController = %s\n",
-         Driver, DriverSize, Entry->KernelAndKextPatches->KPATIConnectorsController);
+	DBG_RT("\nATIConnectorsPatch: driverAddr = %llx, driverSize = %x\nController = %s\n",
+         (UINTN)Driver, DriverSize, KernelAndKextPatches->KPATIConnectorsController);
   ExtractKextBundleIdentifier(InfoPlist);
-	DBG_RT(Entry, "Kext: %s\n", gKextBundleIdentifier);
+	DBG_RT("Kext: %s\n", gKextBundleIdentifier);
   
   // number of occurences od Data should be 1
-  Num = SearchAndCount(Driver, DriverSize, Entry->KernelAndKextPatches->KPATIConnectorsData, Entry->KernelAndKextPatches->KPATIConnectorsDataLen);
+  Num = SearchAndCount(Driver, DriverSize, KernelAndKextPatches->KPATIConnectorsData, KernelAndKextPatches->KPATIConnectorsDataLen);
   if (Num > 1) {
     // error message - shoud always be printed
 	  printf("==> KPATIConnectorsData found %llu times in %s - skipping patching!\n", Num, gKextBundleIdentifier);
-    gBS->Stall(5*1000000);
+    Stall(5*1000000);
     return;
   }
   
   // patch
   Num = SearchAndReplace(Driver,
                          DriverSize,
-                         Entry->KernelAndKextPatches->KPATIConnectorsData,
-                         Entry->KernelAndKextPatches->KPATIConnectorsDataLen,
-                         Entry->KernelAndKextPatches->KPATIConnectorsPatch,
+                         KernelAndKextPatches->KPATIConnectorsData,
+                         KernelAndKextPatches->KPATIConnectorsDataLen,
+                         KernelAndKextPatches->KPATIConnectorsPatch,
                          1);
-  if (Entry->KernelAndKextPatches->KPDebug) {
     if (Num > 0) {
-		DBG_RT(Entry, "==> patched %llu times!\n", Num);
+		DBG_RT("==> patched %llu times!\n", Num);
     } else {
-      DBG_RT(Entry, "==> NOT patched!\n");
+      DBG_RT("==> NOT patched!\n");
     }
-    gBS->Stall(5000000);
-  }
+    Stall(5000000);
 }
 
 
@@ -384,24 +449,38 @@ VOID ATIConnectorsPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT
 // Rehabman corrections 2014
 //
 
-STATIC UINT8   MovlE2ToEcx[] = { 0xB9, 0xE2, 0x00, 0x00, 0x00 };
-STATIC UINT8   MovE2ToCx[]   = { 0x66, 0xB9, 0xE2, 0x00 };
-STATIC UINT8   Wrmsr[]       = { 0x0F, 0x30 };
+const UINT8   MovlE2ToEcx[] = { 0xB9, 0xE2, 0x00, 0x00, 0x00 };
+const UINT8   MovE2ToCx[]   = { 0x66, 0xB9, 0xE2, 0x00 };
+const UINT8   Wrmsr[]       = { 0x0F, 0x30 };
 
-VOID AppleIntelCPUPMPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize, LOADER_ENTRY *Entry)
+VOID LOADER_ENTRY::AppleIntelCPUPMPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize)
 {
   UINTN   Index1;
   UINTN   Index2;
   UINTN   Count = 0;
+  UINTN   Start = 0;
+  UINTN   Size = DriverSize;
 
-	DBG_RT(Entry, "\nAppleIntelCPUPMPatch: driverAddr = %s, driverSize = %x\n", Driver, DriverSize);
-  if (Entry->KernelAndKextPatches->KPDebug) {
-    ExtractKextBundleIdentifier(InfoPlist);
+	DBG_RT("\nAppleIntelCPUPMPatch: driverAddr = %llx, driverSize = %x\n", (UINTN)Driver, DriverSize);
+//  if (KernelAndKextPatches->KPDebug) {
+//    ExtractKextBundleIdentifier(InfoPlist);
+//  }
+//	DBG_RT("Kext: %s\n", gKextBundleIdentifier);
+
+  // we should scan only __text __TEXT | Slice -> do this
+  INTN textName = FindMem(Driver, DriverSize, kPrelinkTextSection, sizeof(kPrelinkTextSection));
+  if (textName > 0) {
+    SEGMENT *textSeg = (SEGMENT *)&Driver[textName];
+    Start = textSeg->fileoff;
+    Size = textSeg->filesize;
+	DBG("found __text [%llu,%llu]\n",Start, Size);
+    if (Start > DriverSize) Start = 0;
+    if (Size > DriverSize) {
+      Size = DriverSize;
+    }
   }
-	DBG_RT(Entry, "Kext: %s\n", gKextBundleIdentifier);
-
-  //TODO: we should scan only __text __TEXT
-  for (Index1 = 0; Index1 < DriverSize; Index1++) {
+  
+  for (Index1 = Start; Index1 < Start + Size; Index1++) {
     // search for MovlE2ToEcx
     if (CompareMem(Driver + Index1, MovlE2ToEcx, sizeof(MovlE2ToEcx)) == 0) {
       // search for wrmsr in next few bytes
@@ -411,7 +490,7 @@ VOID AppleIntelCPUPMPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UI
           Count++;
           Driver[Index2] = 0x90;
           Driver[Index2 + 1] = 0x90;
-			DBG_RT(Entry, " %llu. patched at 0x%llx\n", Count, Index2);
+          DBG_RT(" %llu. patched at 0x%llx\n", Count, Index2);
           break;
         } else if ((Driver[Index2] == 0xC9 && Driver[Index2 + 1] == 0xC3) ||
                    (Driver[Index2] == 0x5D && Driver[Index2 + 1] == 0xC3) ||
@@ -430,7 +509,7 @@ VOID AppleIntelCPUPMPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UI
           Count++;
           Driver[Index2] = 0x90;
           Driver[Index2 + 1] = 0x90;
-			DBG_RT(Entry, " %llu. patched at 0x%llx\n", Count, Index2);
+          DBG_RT(" %llu. patched CX at 0x%llx\n", Count, Index2);
           break;
         } else if ((Driver[Index2] == 0xC9 && Driver[Index2 + 1] == 0xC3) ||
                    (Driver[Index2] == 0x5D && Driver[Index2 + 1] == 0xC3) ||
@@ -443,10 +522,8 @@ VOID AppleIntelCPUPMPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UI
       }
     }
   }
-	DBG_RT(Entry, "= %llu patches\n", Count);
-  if (Entry->KernelAndKextPatches->KPDebug) {
-    gBS->Stall(5000000);
-  }
+	DBG_RT("= %llu patches\n", Count);
+  Stall(5000000);
 }
 
 
@@ -458,35 +535,35 @@ VOID AppleIntelCPUPMPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UI
 // http://www.insanelymac.com/forum/index.php?showtopic=253992
 // http://www.insanelymac.com/forum/index.php?showtopic=276066
 //
+#if OLD_METHOD
+const UINT8   LionSearch_X64[]  = { 0x75, 0x30, 0x44, 0x89, 0xf8 };
+const UINT8   LionReplace_X64[] = { 0xeb, 0x30, 0x44, 0x89, 0xf8 };
 
-STATIC UINT8   LionSearch_X64[]  = { 0x75, 0x30, 0x44, 0x89, 0xf8 };
-STATIC UINT8   LionReplace_X64[] = { 0xeb, 0x30, 0x44, 0x89, 0xf8 };
+const UINT8   LionSearch_i386[]  = { 0x75, 0x3d, 0x8b, 0x75, 0x08 };
+const UINT8   LionReplace_i386[] = { 0xeb, 0x3d, 0x8b, 0x75, 0x08 };
 
-STATIC UINT8   LionSearch_i386[]  = { 0x75, 0x3d, 0x8b, 0x75, 0x08 };
-STATIC UINT8   LionReplace_i386[] = { 0xeb, 0x3d, 0x8b, 0x75, 0x08 };
-
-STATIC UINT8   MLSearch[]  = { 0x75, 0x30, 0x89, 0xd8 };
-STATIC UINT8   MLReplace[] = { 0xeb, 0x30, 0x89, 0xd8 };
+const UINT8   MLSearch[]  = { 0x75, 0x30, 0x89, 0xd8 };
+const UINT8   MLReplace[] = { 0xeb, 0x30, 0x89, 0xd8 };
 
 // SunKi: 10.9 - 10.14.3
-STATIC UINT8   MavMoj3Search[]  = { 0x75, 0x2e, 0x0f, 0xb6 };
-STATIC UINT8   MavMoj3Replace[] = { 0xeb, 0x2e, 0x0f, 0xb6 };
+const UINT8   MavMoj3Search[]  = { 0x75, 0x2e, 0x0f, 0xb6 };
+const UINT8   MavMoj3Replace[] = { 0xeb, 0x2e, 0x0f, 0xb6 };
 
 // RodionS: 10.14.4+ / 10.15 DB1
-STATIC UINT8   Moj4CataSearch[]  = { 0x75, 0x33, 0x0f, 0xb7 };
-STATIC UINT8   Moj4CataReplace[] = { 0xeb, 0x33, 0x0f, 0xb7 };
-
+const UINT8   Moj4CataSearch[]  = { 0x75, 0x33, 0x0f, 0xb7 };
+const UINT8   Moj4CataReplace[] = { 0xeb, 0x33, 0x0f, 0xb7 };
+#endif
 //
 // We can not rely on OSVersion global variable for OS version detection,
-// since in some cases it is not correct (install of ML from Lion, for example).
+// since in some cases it is not correct (install of ML from Lion, for example). -- AppleRTC patch is not needed for installation
 // So, we'll use "brute-force" method - just try to patch.
 // Actually, we'll at least check that if we can find only one instance of code that
 // we are planning to patch.
 //
 
-VOID AppleRTCPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize, LOADER_ENTRY *Entry)
+VOID LOADER_ENTRY::AppleRTCPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize)
 {
-  
+#if OLD_METHOD
   UINTN   Num = 0;
   UINTN   NumLion_X64 = 0;
   UINTN   NumLion_i386 = 0;
@@ -494,11 +571,11 @@ VOID AppleRTCPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 In
   UINTN   NumMavMoj3 = 0;
   UINTN   NumMoj4 = 0;
   
-	DBG_RT(Entry, "\nAppleRTCPatch: driverAddr = %s, driverSize = %x\n", Driver, DriverSize);
-  if (Entry->KernelAndKextPatches->KPDebug) {
+	DBG_RT("\nAppleRTCPatch: driverAddr = %llx, driverSize = %x\n", (UINTN)Driver, DriverSize);
+  if (KernelAndKextPatches->KPDebug) {
     ExtractKextBundleIdentifier(InfoPlist);
   }
-	DBG_RT(Entry, "Kext: %s\n", gKextBundleIdentifier);
+	DBG_RT("Kext: %s\n", gKextBundleIdentifier);
   
   if (is64BitKernel) {
     NumLion_X64 = SearchAndCount(Driver, DriverSize, LionSearch_X64, sizeof(LionSearch_X64));
@@ -514,31 +591,42 @@ VOID AppleRTCPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 In
     // and we'll skip it
 	  printf("AppleRTCPatch: ERROR: multiple patterns found (LionX64: %llu, Lioni386: %llu, ML: %llu, MavMoj3: %llu, Moj4: %llu) - skipping patching!\n",
           NumLion_X64, NumLion_i386, NumML, NumMavMoj3, NumMoj4);
-    gBS->Stall(5000000);
+    Stall(5000000);
     return;
   }
   
   if (NumLion_X64 == 1) {
     Num = SearchAndReplace(Driver, DriverSize, LionSearch_X64, sizeof(LionSearch_X64), LionReplace_X64, 1);
-	  DBG_RT(Entry, "==> Lion X64: %llu replaces done.\n", Num);
+	  DBG_RT("==> Lion X64: %llu replaces done.\n", Num);
   } else if (NumLion_i386 == 1) {
     Num = SearchAndReplace(Driver, DriverSize, LionSearch_i386, sizeof(LionSearch_i386), LionReplace_i386, 1);
-	  DBG_RT(Entry, "==> Lion i386: %llu replaces done.\n", Num);
+	  DBG_RT("==> Lion i386: %llu replaces done.\n", Num);
   } else if (NumML == 1) {
     Num = SearchAndReplace(Driver, DriverSize, MLSearch, sizeof(MLSearch), MLReplace, 1);
-	  DBG_RT(Entry, "==> MountainLion X64: %llu replaces done.\n", Num);
+	  DBG_RT("==> MountainLion X64: %llu replaces done.\n", Num);
   } else if (NumMavMoj3 == 1) {
     Num = SearchAndReplace(Driver, DriverSize, MavMoj3Search, sizeof(MavMoj3Search), MavMoj3Replace, 1);
-	  DBG_RT(Entry, "==> Mav/Yos/El/Sie/HS/Moj3 X64: %llu replaces done.\n", Num);
+	  DBG_RT("==> Mav/Yos/El/Sie/HS/Moj3 X64: %llu replaces done.\n", Num);
   } else if (NumMoj4 == 1) {
     Num = SearchAndReplace(Driver, DriverSize, Moj4CataSearch, sizeof(Moj4CataSearch), Moj4CataReplace, 1);
-	  DBG_RT(Entry, "==> Mojave4 X64: %llu replaces done.\n", Num);
+	  DBG_RT("==> Mojave4 X64: %llu replaces done.\n", Num);
   } else {
-    DBG_RT(Entry, "==> Patterns not found - patching NOT done.\n");
+    DBG_RT("==> Patterns not found - patching NOT done.\n");
   }
-  if (Entry->KernelAndKextPatches->KPDebug) {
-    gBS->Stall(5000000);
+#else
+  //RodionS
+
+  UINTN procLocation = searchProcInDriver(Driver, DriverSize, "updateChecksum");
+  if (procLocation != 0) {
+    Driver[procLocation] = 0xC3;
+    DBG_RT("AppleRTC: patched\n");
+  } else {
+    DBG_RT("AppleRTC: not patched\n");
   }
+  
+
+#endif
+  Stall(5000000);
 }
 
 
@@ -549,19 +637,17 @@ VOID AppleRTCPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 In
 // disable kext injection InjectKexts()
 //
 // not used since 4242
-VOID CheckForFakeSMC(CHAR8 *InfoPlist, LOADER_ENTRY *Entry)
+VOID LOADER_ENTRY::CheckForFakeSMC(CHAR8 *InfoPlist)
 {
-  if (OSFLAG_ISSET(Entry->Flags, OSFLAG_CHECKFAKESMC) &&
-      OSFLAG_ISSET(Entry->Flags, OSFLAG_WITHKEXTS)) {
+  if (OSFLAG_ISSET(Flags, OSFLAG_CHECKFAKESMC) &&
+      OSFLAG_ISSET(Flags, OSFLAG_WITHKEXTS)) {
     if (AsciiStrStr(InfoPlist, "<string>org.netkas.driver.FakeSMC</string>") != NULL
         || AsciiStrStr(InfoPlist, "<string>org.netkas.FakeSMC</string>") != NULL
         || AsciiStrStr(InfoPlist, "<string>as.vit9696.VirtualSMC</string>") != NULL)
     {
-      Entry->Flags = OSFLAG_UNSET(Entry->Flags, OSFLAG_WITHKEXTS);
-      if (Entry->KernelAndKextPatches->KPDebug) {
-        DBG_RT(Entry, "\nFakeSMC or VirtualSMC found, UNSET WITHKEXTS\n");
-        gBS->Stall(5000000);
-      }
+      Flags = OSFLAG_UNSET(Flags, OSFLAG_WITHKEXTS);
+      DBG_RT("\nFakeSMC or VirtualSMC found, UNSET WITHKEXTS\n");
+      Stall(5000000);
     }
   }
 }
@@ -584,41 +670,38 @@ STATIC UINT8   DELL_SMBIOS_GUID_Replace[] = { 0x45, 0x42, 0x39, 0x44, 0x32, 0x44
 // all computers even though Apple.Inc should obey the rule
 // that's why we can be so confident to write patch pattern this way - syscl
 //
-VOID DellSMBIOSPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize, LOADER_ENTRY *Entry)
+VOID LOADER_ENTRY::DellSMBIOSPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize)
 {
-    //
-    // syscl
-    // Note, smbios truncate issue only affects Broadwell platform and platform
-    // later than Broadwell thus we don't need to consider OS versinos earlier
-    // than Yosemite, they are all pure 64bit platforms
-    //
-    UINTN gPatchCount = 0;
-    
-	DBG_RT(Entry, "\nDellSMBIOSPatch: driverAddr = %s, driverSize = %x\n", Driver, DriverSize);
-    if (Entry->KernelAndKextPatches->KPDebug)
-    {
-        ExtractKextBundleIdentifier(InfoPlist);
-    }
-	DBG_RT(Entry, "Kext: %s\n", gKextBundleIdentifier);
-    
-    //
-    // now, let's patch it!
-    //
-    gPatchCount = SearchAndReplace(Driver, DriverSize, DELL_SMBIOS_GUID_Search, sizeof(DELL_SMBIOS_GUID_Search), DELL_SMBIOS_GUID_Replace, 1);
-    
-    if (gPatchCount == 1)
-    {
-		DBG_RT(Entry, "==> AppleSMBIOS: %llu replaces done.\n", gPatchCount);
-    }
-    else
-    {
-        DBG_RT(Entry, "==> Patterns not found - patching NOT done.\n");
-    }
-
-    if (Entry->KernelAndKextPatches->KPDebug)
-    {
-        gBS->Stall(5000000);
-    }
+  //
+  // syscl
+  // Note, smbios truncate issue only affects Broadwell platform and platform
+  // later than Broadwell thus we don't need to consider OS versinos earlier
+  // than Yosemite, they are all pure 64bit platforms
+  //
+  UINTN gPatchCount = 0;
+  
+  DBG_RT("\nDellSMBIOSPatch: driverAddr = %llx, driverSize = %x\n", (UINTN)Driver, DriverSize);
+  if (KernelAndKextPatches->KPDebug)
+  {
+    ExtractKextBundleIdentifier(InfoPlist);
+  }
+  DBG_RT("Kext: %s\n", gKextBundleIdentifier);
+  
+  //
+  // now, let's patch it!
+  //
+  gPatchCount = SearchAndReplace(Driver, DriverSize, DELL_SMBIOS_GUID_Search, sizeof(DELL_SMBIOS_GUID_Search), DELL_SMBIOS_GUID_Replace, 1);
+  
+  if (gPatchCount >= 1)
+  {
+    DBG_RT("==> AppleSMBIOS: %llu replaces done.\n", gPatchCount);
+  }
+  else
+  {
+    DBG_RT("==> Patterns not found - patching NOT done.\n");
+  }
+  
+  Stall(5000000);
 }
 
 
@@ -628,17 +711,17 @@ VOID DellSMBIOSPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 
 // SNBE_AICPUPatch implemented by syscl
 // Fix AppleIntelCPUPowerManagement on SandyBridge-E (c) omni, stinga11
 //
-VOID SNBE_AICPUPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize, LOADER_ENTRY *Entry)
+VOID LOADER_ENTRY::SNBE_AICPUPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize)
 {
     UINT32 i;
-    UINT64 os_ver = AsciiOSVersionToUint64(Entry->OSVersion);
+    UINT64 os_ver = AsciiOSVersionToUint64(OSVersion);
     
-	DBG_RT(Entry, "\nSNBE_AICPUPatch: driverAddr = %s, driverSize = %x\n", Driver, DriverSize);
-    if (Entry->KernelAndKextPatches->KPDebug) {
+	DBG_RT("\nSNBE_AICPUPatch: driverAddr = %llx, driverSize = %x\n", (UINTN)Driver, DriverSize);
+    if (KernelAndKextPatches->KPDebug) {
         ExtractKextBundleIdentifier(InfoPlist);
     }
     
-	DBG_RT(Entry, "Kext: %s\n", gKextBundleIdentifier);
+	DBG_RT("Kext: %s\n", gKextBundleIdentifier);
     
     // now let's patch it
     if (os_ver < AsciiOSVersionToUint64("10.9") || os_ver >= AsciiOSVersionToUint64("10.14")) {
@@ -649,7 +732,7 @@ VOID SNBE_AICPUPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 
     
     if (os_ver < AsciiOSVersionToUint64("10.10")) {
         // 10.9.x
-        STATIC UINT8 find[][3] = {
+        const UINT8 find[][3] = {
             { 0x84, 0x2F, 0x01 },
             { 0x3E, 0x75, 0x3A },
             { 0x84, 0x5F, 0x01 },
@@ -658,7 +741,7 @@ VOID SNBE_AICPUPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 
             { 0xFC, 0x02, 0x74 },
             { 0x01, 0x74, 0x58 }
         };
-        STATIC UINT8 repl[][3] = {
+        const UINT8 repl[][3] = {
             { 0x85, 0x2F, 0x01 },
             { 0x3E, 0x90, 0x90 },
             { 0x85, 0x5F, 0x01 },
@@ -677,12 +760,12 @@ VOID SNBE_AICPUPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 
         }
     } else if (os_ver < AsciiOSVersionToUint64("10.11")) {
         // 10.10.x
-        STATIC UINT8 find[][3] = {
+        const UINT8 find[][3] = {
             { 0x3E, 0x75, 0x39 },
             { 0x74, 0x11, 0xB9 },
             { 0x01, 0x74, 0x56 }
         };
-        STATIC UINT8 repl[][3] = {
+        const UINT8 repl[][3] = {
             { 0x3E, 0x90, 0x90 },
             { 0xEB, 0x11, 0xB9 },
             { 0x01, 0xEB, 0x56 }
@@ -695,8 +778,8 @@ VOID SNBE_AICPUPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 
             }
         }
         
-        STATIC UINT8 find_1[] = { 0xFF, 0x0F, 0x84, 0x2D };
-        STATIC UINT8 repl_1[] = { 0xFF, 0x0F, 0x85, 0x2D };
+        const UINT8 find_1[] = { 0xFF, 0x0F, 0x84, 0x2D };
+        const UINT8 repl_1[] = { 0xFF, 0x0F, 0x85, 0x2D };
         if (SearchAndReplace(Driver, DriverSize, find_1, sizeof(find_1), repl_1, 0)) {
             DBG("SNBE_AICPUPatch (4/7) applied\n");
         } else {
@@ -704,24 +787,24 @@ VOID SNBE_AICPUPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 
         }
         
         
-        STATIC UINT8 find_2[] = { 0x01, 0x00, 0x01, 0x0F, 0x84 };
-        STATIC UINT8 repl_2[] = { 0x01, 0x00, 0x01, 0x0F, 0x85 };
+        const UINT8 find_2[] = { 0x01, 0x00, 0x01, 0x0F, 0x84 };
+        const UINT8 repl_2[] = { 0x01, 0x00, 0x01, 0x0F, 0x85 };
         if (SearchAndReplace(Driver, DriverSize, find_2, sizeof(find_2), repl_2, 0)) {
             DBG("SNBE_AICPUPatch (5/7) applied\n");
         } else {
             DBG("SNBE_AICPUPatch (5/7) not apply\n");
         }
         
-        STATIC UINT8 find_3[] = { 0x02, 0x74, 0x0B, 0x41, 0x83, 0xFC, 0x03, 0x75, 0x22, 0xB9, 0x02, 0x06 };
-        STATIC UINT8 repl_3[] = { 0x02, 0xEB, 0x0B, 0x41, 0x83, 0xFC, 0x03, 0x75, 0x22, 0xB9, 0x02, 0x06 };
+        const UINT8 find_3[] = { 0x02, 0x74, 0x0B, 0x41, 0x83, 0xFC, 0x03, 0x75, 0x22, 0xB9, 0x02, 0x06 };
+        const UINT8 repl_3[] = { 0x02, 0xEB, 0x0B, 0x41, 0x83, 0xFC, 0x03, 0x75, 0x22, 0xB9, 0x02, 0x06 };
         if (SearchAndReplace(Driver, DriverSize, find_3, sizeof(find_3), repl_3, 0)) {
             DBG("SNBE_AICPUPatch (6/7) applied\n");
         } else {
             DBG("SNBE_AICPUPatch (6/7) not apply\n");
         }
         
-        STATIC UINT8 find_4[] = { 0x74, 0x0B, 0x41, 0x83, 0xFC, 0x03, 0x75, 0x11, 0xB9, 0x42, 0x06, 0x00 };
-        STATIC UINT8 repl_4[] = { 0xEB, 0x0B, 0x41, 0x83, 0xFC, 0x03, 0x75, 0x11, 0xB9, 0x42, 0x06, 0x00 };
+        const UINT8 find_4[] = { 0x74, 0x0B, 0x41, 0x83, 0xFC, 0x03, 0x75, 0x11, 0xB9, 0x42, 0x06, 0x00 };
+        const UINT8 repl_4[] = { 0xEB, 0x0B, 0x41, 0x83, 0xFC, 0x03, 0x75, 0x11, 0xB9, 0x42, 0x06, 0x00 };
         if (SearchAndReplace(Driver, DriverSize, find_4, sizeof(find_4), repl_4, 0)) {
             DBG("SNBE_AICPUPatch (7/7) applied\n");
         } else {
@@ -729,12 +812,12 @@ VOID SNBE_AICPUPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 
         }
     } else if (os_ver < AsciiOSVersionToUint64("10.12")) {
         // 10.11
-        STATIC UINT8 find[][3] = {
+        const UINT8 find[][3] = {
             { 0x3E, 0x75, 0x39 },
             { 0x75, 0x11, 0xB9 },
             { 0x01, 0x74, 0x5F }
         };
-        STATIC UINT8 repl[][3] = {
+        const UINT8 repl[][3] = {
             { 0x3E, 0x90, 0x90 },
             { 0xEB, 0x11, 0xB9 },
             { 0x01, 0xEB, 0x5F }
@@ -747,32 +830,32 @@ VOID SNBE_AICPUPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 
             }
         }
         
-        STATIC UINT8 find_1[] = { 0xFF, 0x0F, 0x84, 0x2D };
-        STATIC UINT8 repl_1[] = { 0xFF, 0x0F, 0x85, 0x2D };
+        const UINT8 find_1[] = { 0xFF, 0x0F, 0x84, 0x2D };
+        const UINT8 repl_1[] = { 0xFF, 0x0F, 0x85, 0x2D };
         if (SearchAndReplace(Driver, DriverSize, find_1, sizeof(find_1), repl_1, 0)) {
             DBG("SNBE_AICPUPatch (4/7) applied\n");
         } else {
             DBG("SNBE_AICPUPatch (4/7) not apply\n");
         }
         
-        STATIC UINT8 find_2[] = { 0x01, 0x00, 0x01, 0x0F, 0x84 };
-        STATIC UINT8 repl_2[] = { 0x01, 0x00, 0x01, 0x0F, 0x85 };
+        const UINT8 find_2[] = { 0x01, 0x00, 0x01, 0x0F, 0x84 };
+        const UINT8 repl_2[] = { 0x01, 0x00, 0x01, 0x0F, 0x85 };
         if (SearchAndReplace(Driver, DriverSize, find_2, sizeof(find_2), repl_2, 0)) {
             DBG("SNBE_AICPUPatch (5/7) applied\n");
         } else {
             DBG("SNBE_AICPUPatch (5/7) not apply\n");
         }
         
-        STATIC UINT8 find_3[] = { 0xC9, 0x74, 0x16, 0x0F, 0x32, 0x48, 0x25, 0xFF, 0x0F, 0x00, 0x00, 0x48 };
-        STATIC UINT8 repl_3[] = { 0xC9, 0xEB, 0x16, 0x0F, 0x32, 0x48, 0x25, 0xFF, 0x0F, 0x00, 0x00, 0x48 };
+        const UINT8 find_3[] = { 0xC9, 0x74, 0x16, 0x0F, 0x32, 0x48, 0x25, 0xFF, 0x0F, 0x00, 0x00, 0x48 };
+        const UINT8 repl_3[] = { 0xC9, 0xEB, 0x16, 0x0F, 0x32, 0x48, 0x25, 0xFF, 0x0F, 0x00, 0x00, 0x48 };
         if (SearchAndReplace(Driver, DriverSize, find_3, sizeof(find_3), repl_3, 0)) {
             DBG("SNBE_AICPUPatch (6/7) applied\n");
         } else {
             DBG("SNBE_AICPUPatch (6/7) not apply\n");
         }
         
-        STATIC UINT8 find_4[] = { 0xC9, 0x74, 0x0C, 0x0F, 0x32, 0x83, 0xE0, 0x1F, 0x42, 0x89, 0x44, 0x3B };
-        STATIC UINT8 repl_4[] = { 0xC9, 0xEB, 0x0C, 0x0F, 0x32, 0x83, 0xE0, 0x1F, 0x42, 0x89, 0x44, 0x3B };
+        const UINT8 find_4[] = { 0xC9, 0x74, 0x0C, 0x0F, 0x32, 0x83, 0xE0, 0x1F, 0x42, 0x89, 0x44, 0x3B };
+        const UINT8 repl_4[] = { 0xC9, 0xEB, 0x0C, 0x0F, 0x32, 0x83, 0xE0, 0x1F, 0x42, 0x89, 0x44, 0x3B };
         if (SearchAndReplace(Driver, DriverSize, find_4, sizeof(find_4), repl_4, 0)) {
             DBG("SNBE_AICPUPatch (7/7) applied\n");
         } else {
@@ -780,12 +863,12 @@ VOID SNBE_AICPUPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 
         }
     } else if (os_ver < AsciiOSVersionToUint64("10.13")) {
         // 10.12
-        STATIC UINT8 find[][3] = {
+        const UINT8 find[][3] = {
             { 0x01, 0x74, 0x61 },
             { 0x3E, 0x75, 0x38 },
             { 0x75, 0x11, 0xB9 }
         };
-        STATIC UINT8 repl[][3] = {
+        const UINT8 repl[][3] = {
             { 0x01, 0xEB, 0x61 },
             { 0x3E, 0x90, 0x90 },
             { 0xEB, 0x11, 0xB9 }
@@ -798,32 +881,32 @@ VOID SNBE_AICPUPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 
             }
         }
         
-        STATIC UINT8 find_1[] = { 0xFF, 0x0F, 0x84, 0x2D };
-        STATIC UINT8 repl_1[] = { 0xFF, 0x0F, 0x85, 0x2D };
+        const UINT8 find_1[] = { 0xFF, 0x0F, 0x84, 0x2D };
+        const UINT8 repl_1[] = { 0xFF, 0x0F, 0x85, 0x2D };
         if (SearchAndReplace(Driver, DriverSize, find_1, sizeof(find_1), repl_1, 0)) {
             DBG("SNBE_AICPUPatch (4/7) applied\n");
         } else {
             DBG("SNBE_AICPUPatch (4/7) not apply\n");
         }
 
-        STATIC UINT8 find_2[] = { 0x01, 0x00, 0x01, 0x0F, 0x84 };
-        STATIC UINT8 repl_2[] = { 0x01, 0x00, 0x01, 0x0F, 0x85 };
+        const UINT8 find_2[] = { 0x01, 0x00, 0x01, 0x0F, 0x84 };
+        const UINT8 repl_2[] = { 0x01, 0x00, 0x01, 0x0F, 0x85 };
         if (SearchAndReplace(Driver, DriverSize, find_2, sizeof(find_2), repl_2, 0)) {
             DBG("SNBE_AICPUPatch (5/7) applied\n");
         } else {
             DBG("SNBE_AICPUPatch (5/7) not apply\n");
         }
         
-        STATIC UINT8 find_3[] = { 0xC9, 0x74, 0x15, 0x0F, 0x32, 0x25, 0xFF, 0x0F, 0x00, 0x00, 0x48 };
-        STATIC UINT8 repl_3[] = { 0xC9, 0xEB, 0x15, 0x0F, 0x32, 0x25, 0xFF, 0x0F, 0x00, 0x00, 0x48 };
+        const UINT8 find_3[] = { 0xC9, 0x74, 0x15, 0x0F, 0x32, 0x25, 0xFF, 0x0F, 0x00, 0x00, 0x48 };
+        const UINT8 repl_3[] = { 0xC9, 0xEB, 0x15, 0x0F, 0x32, 0x25, 0xFF, 0x0F, 0x00, 0x00, 0x48 };
         if (SearchAndReplace(Driver, DriverSize, find_3, sizeof(find_3), repl_3, 0)) {
             DBG("SNBE_AICPUPatch (6/7) applied\n");
         } else {
             DBG("SNBE_AICPUPatch (6/7) not apply\n");
         }
 
-        STATIC UINT8 find_4[] = { 0xC9, 0x74, 0x0C, 0x0F, 0x32, 0x83, 0xE0, 0x1F, 0x42, 0x89, 0x44, 0x3B };
-        STATIC UINT8 repl_4[] = { 0xC9, 0xEB, 0x0C, 0x0F, 0x32, 0x83, 0xE0, 0x1F, 0x42, 0x89, 0x44, 0x3B };
+        const UINT8 find_4[] = { 0xC9, 0x74, 0x0C, 0x0F, 0x32, 0x83, 0xE0, 0x1F, 0x42, 0x89, 0x44, 0x3B };
+        const UINT8 repl_4[] = { 0xC9, 0xEB, 0x0C, 0x0F, 0x32, 0x83, 0xE0, 0x1F, 0x42, 0x89, 0x44, 0x3B };
         if (SearchAndReplace(Driver, DriverSize, find_4, sizeof(find_4), repl_4, 0)) {
             DBG("SNBE_AICPUPatch (7/7) applied\n");
         } else {
@@ -831,12 +914,12 @@ VOID SNBE_AICPUPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 
         }
     } else if (os_ver < AsciiOSVersionToUint64("10.15")) {
         // 10.13/10.14
-        STATIC UINT8 find[][3] = {
+        const UINT8 find[][3] = {
             { 0x01, 0x74, 0x61 },
             { 0x3E, 0x75, 0x38 },
             { 0x75, 0x11, 0xB9 }
         };
-        STATIC UINT8 repl[][3] = {
+        const UINT8 repl[][3] = {
             { 0x01, 0xEB, 0x61 },
             { 0x3E, 0x90, 0x90 },
             { 0xEB, 0x11, 0xB9 }
@@ -849,32 +932,32 @@ VOID SNBE_AICPUPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 
             }
         }
         
-        STATIC UINT8 find_1[] = { 0xFF, 0x0F, 0x84, 0xD3 };
-        STATIC UINT8 repl_1[] = { 0xFF, 0x0F, 0x85, 0xD3 };
+        const UINT8 find_1[] = { 0xFF, 0x0F, 0x84, 0xD3 };
+        const UINT8 repl_1[] = { 0xFF, 0x0F, 0x85, 0xD3 };
         if (SearchAndReplace(Driver, DriverSize, find_1, sizeof(find_1), repl_1, 0)) {
             DBG("SNBE_AICPUPatch (4/7) applied\n");
         } else {
             DBG("SNBE_AICPUPatch (4/7) not apply\n");
         }
         
-        STATIC UINT8 find_2[] = { 0x01, 0x00, 0x01, 0x0F, 0x84 };
-        STATIC UINT8 repl_2[] = { 0x01, 0x00, 0x01, 0x0F, 0x85 };
+        const UINT8 find_2[] = { 0x01, 0x00, 0x01, 0x0F, 0x84 };
+        const UINT8 repl_2[] = { 0x01, 0x00, 0x01, 0x0F, 0x85 };
         if (SearchAndReplace(Driver, DriverSize, find_2, sizeof(find_2), repl_2, 0)) {
             DBG("SNBE_AICPUPatch (5/7) applied\n");
         } else {
             DBG("SNBE_AICPUPatch (5/7) not apply\n");
         }
         
-        STATIC UINT8 find_3[] = { 0xC9, 0x74, 0x14, 0x0F, 0x32, 0x25, 0xFF, 0x0F, 0x00, 0x00, 0x6B };
-        STATIC UINT8 repl_3[] = { 0xC9, 0xEB, 0x14, 0x0F, 0x32, 0x25, 0xFF, 0x0F, 0x00, 0x00, 0x6B};
+        const UINT8 find_3[] = { 0xC9, 0x74, 0x14, 0x0F, 0x32, 0x25, 0xFF, 0x0F, 0x00, 0x00, 0x6B };
+        const UINT8 repl_3[] = { 0xC9, 0xEB, 0x14, 0x0F, 0x32, 0x25, 0xFF, 0x0F, 0x00, 0x00, 0x6B};
         if (SearchAndReplace(Driver, DriverSize, find_3, sizeof(find_3), repl_3, 0)) {
             DBG("SNBE_AICPUPatch (6/7) applied\n");
         } else {
             DBG("SNBE_AICPUPatch (6/7) not apply\n");
         }
         
-        STATIC UINT8 find_4[] = { 0xC9, 0x74, 0x0C, 0x0F, 0x32, 0x83, 0xE0, 0x1F, 0x42, 0x89, 0x44, 0x3B };
-        STATIC UINT8 repl_4[] = { 0xC9, 0xEB, 0x0C, 0x0F, 0x32, 0x83, 0xE0, 0x1F, 0x42, 0x89, 0x44, 0x3B };
+        const UINT8 find_4[] = { 0xC9, 0x74, 0x0C, 0x0F, 0x32, 0x83, 0xE0, 0x1F, 0x42, 0x89, 0x44, 0x3B };
+        const UINT8 repl_4[] = { 0xC9, 0xEB, 0x0C, 0x0F, 0x32, 0x83, 0xE0, 0x1F, 0x42, 0x89, 0x44, 0x3B };
         if (SearchAndReplace(Driver, DriverSize, find_4, sizeof(find_4), repl_4, 0)) {
             DBG("SNBE_AICPUPatch (7/7) applied\n");
         } else {
@@ -882,9 +965,7 @@ VOID SNBE_AICPUPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 
         }
     }
     
-    if (Entry->KernelAndKextPatches->KPDebug) {
-        gBS->Stall(5000000);
-    }
+  Stall(5000000);
 }
 
 
@@ -895,28 +976,28 @@ VOID SNBE_AICPUPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 
 //
 
 // El Capitan
-STATIC UINT8   BroadwellE_IOPCI_Find_El[] = { 0x48, 0x81, 0xF9, 0x01, 0x00, 0x00, 0x40 };
-STATIC UINT8   BroadwellE_IOPCI_Repl_El[] = { 0x48, 0x81, 0xF9, 0x01, 0x00, 0x00, 0x80 };
+const UINT8   BroadwellE_IOPCI_Find_El[] = { 0x48, 0x81, 0xF9, 0x01, 0x00, 0x00, 0x40 };
+const UINT8   BroadwellE_IOPCI_Repl_El[] = { 0x48, 0x81, 0xF9, 0x01, 0x00, 0x00, 0x80 };
 
 // Sierra/High Sierra
-STATIC UINT8   BroadwellE_IOPCI_Find_SieHS[] = { 0x48, 0x81, 0xFB, 0x00, 0x00, 0x00, 0x40 };
-STATIC UINT8   BroadwellE_IOPCI_Repl_SieHS[] = { 0x48, 0x81, 0xFB, 0x00, 0x00, 0x00, 0x80 };
+const UINT8   BroadwellE_IOPCI_Find_SieHS[] = { 0x48, 0x81, 0xFB, 0x00, 0x00, 0x00, 0x40 };
+const UINT8   BroadwellE_IOPCI_Repl_SieHS[] = { 0x48, 0x81, 0xFB, 0x00, 0x00, 0x00, 0x80 };
 
 // Mojave
-STATIC UINT8   BroadwellE_IOPCI_Find_MojCata[] = { 0x48, 0x3D, 0x00, 0x00, 0x00, 0x40 };
-STATIC UINT8   BroadwellE_IOPCI_Repl_MojCata[] = { 0x48, 0x3D, 0x00, 0x00, 0x00, 0x80 };
+const UINT8   BroadwellE_IOPCI_Find_MojCata[] = { 0x48, 0x3D, 0x00, 0x00, 0x00, 0x40 };
+const UINT8   BroadwellE_IOPCI_Repl_MojCata[] = { 0x48, 0x3D, 0x00, 0x00, 0x00, 0x80 };
 
-VOID BDWE_IOPCIPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize, LOADER_ENTRY *Entry)
+VOID LOADER_ENTRY::BDWE_IOPCIPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize)
 {
   UINTN count = 0;
-  UINT64 os_ver = AsciiOSVersionToUint64(Entry->OSVersion);
+  UINT64 os_ver = AsciiOSVersionToUint64(OSVersion);
     
-	DBG_RT(Entry, "\nBDWE_IOPCIPatch: driverAddr = %s, driverSize = %x\n", Driver, DriverSize);
-  if (Entry->KernelAndKextPatches->KPDebug) {
+	DBG_RT("\nBDWE_IOPCIPatch: driverAddr = %llx, driverSize = %x\n", (UINTN)Driver, DriverSize);
+  if (KernelAndKextPatches->KPDebug) {
     ExtractKextBundleIdentifier(InfoPlist);
   }
     
-	DBG_RT(Entry, "Kext: %s\n", gKextBundleIdentifier);
+	DBG_RT("Kext: %s\n", gKextBundleIdentifier);
   //
   // now, let's patch it!
   //
@@ -930,17 +1011,43 @@ VOID BDWE_IOPCIPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 
   }
   
   if (count) {
-	  DBG_RT(Entry, "==> IOPCIFamily: %llu replaces done.\n", count);
+	  DBG_RT("==> IOPCIFamily: %llu replaces done.\n", count);
   } else {
-    DBG_RT(Entry, "==> Patterns not found - patching NOT done.\n");
+    DBG_RT("==> Patterns not found - patching NOT done.\n");
   }
     
-  if (Entry->KernelAndKextPatches->KPDebug) {
-    gBS->Stall(5000000);
-  }
+  Stall(5000000);
 }
 
+VOID LOADER_ENTRY::EightApplePatch(UINT8 *Driver, UINT32 DriverSize)
+{
+//  UINTN procLen = 0;
+  UINTN procAddr = searchProcInDriver(Driver, DriverSize, "initFB");
+  UINTN verbose  = searchProcInDriver(Driver, DriverSize, "gIOFBVerboseBoot");
+  UINTN patchLoc = FindRelative32(Driver, procAddr, 0x300, verbose-1);
+  if (patchLoc != 0 && Driver[patchLoc + 1] == 0x75) {
+    Driver[patchLoc + 1] = 0xEB;
+//    DBG_RT("8 apples patch success\n");
+  } else {
+    DBG_RT("8 apples patch not found, loc=0x%llx\n", patchLoc);
+//    if (patchLoc != 0) {
+//      for (int i=0; i<10; ++i) {
+//        DBG_RT("%02x", Driver[patchLoc+i]);
+//      }
+//      DBG_RT("\n");
+//    } else if (procAddr != 0) {
+//      for (int i=0; i<10; ++i) {
+//        DBG_RT("%02x", Driver[procAddr+i]);
+//      }
+//      DBG_RT("\n");
+//    }
+//    DBG_RT("  procAddr=0x%llx\n", procAddr);
+//    DBG_RT("  verbose=0x%llx\n", verbose);
 
+//    Stall(20000000);
+  }
+  Stall(5000000);
+}
 
 ////////////////////////////////////
 //
@@ -956,62 +1063,103 @@ VOID BDWE_IOPCIPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 
 // Generic kext patch functions
 //
 //
-VOID AnyKextPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize, INT32 N, LOADER_ENTRY *Entry)
+VOID LOADER_ENTRY::AnyKextPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize, INT32 N)
 {
   UINTN   Num = 0;
   INTN    Ind;
-  
-	DBG_RT(Entry, "\nAnyKextPatch %d: driverAddr = %s, driverSize = %x\nAnyKext = %s\n",
-         N, Driver, DriverSize, Entry->KernelAndKextPatches->KextPatches[N].Label);
 
-  if (!Entry->KernelAndKextPatches->KextPatches[N].MenuItem.BValue) {
-    DBG_RT(Entry, "==> DISABLED!\n");
+  // if we modify value directly at KernelAndKextPatches->KextPatches[N].SearchLen, it will be wrong for next driver
+  UINTN   SearchLen = KernelAndKextPatches->KextPatches[N].SearchLen;
+  
+  DBG_RT("\nAnyKextPatch %d: driverAddr = %llx, driverSize = %x\nAnyKext = %s\n",
+         N, (UINTN)Driver, DriverSize, KernelAndKextPatches->KextPatches[N].Label);
+
+  if (!KernelAndKextPatches->KextPatches[N].MenuItem.BValue) {
     return;
   }
 
-  if (Entry->KernelAndKextPatches->KPDebug) {
+  
+  if (!SearchLen ||
+      (SearchLen > DriverSize)) {
+    SearchLen = DriverSize;
+  }
+
+  if (KernelAndKextPatches->KPDebug) {
     ExtractKextBundleIdentifier(InfoPlist);
   }
 
-	DBG_RT(Entry, "Kext: %s\n", gKextBundleIdentifier);
+	DBG_RT("Kext: %s\n", gKextBundleIdentifier);
 
-  if (!Entry->KernelAndKextPatches->KextPatches[N].IsPlistPatch) {
+  if (!KernelAndKextPatches->KextPatches[N].IsPlistPatch) {
     // kext binary patch
-    DBG_RT(Entry, "Binary patch\n");
-    Num = SearchAndReplaceMask(Driver,
-                               DriverSize,
-                               Entry->KernelAndKextPatches->KextPatches[N].Data,
-                               Entry->KernelAndKextPatches->KextPatches[N].MaskFind,
-                               Entry->KernelAndKextPatches->KextPatches[N].DataLen,
-                               Entry->KernelAndKextPatches->KextPatches[N].Patch,
-                               Entry->KernelAndKextPatches->KextPatches[N].MaskReplace,
-                               -1);
+    DBG_RT("Binary patch\n");
+    bool once = false;
+    UINTN procLen = 0;
+    UINTN procAddr = searchProcInDriver(Driver, DriverSize, KernelAndKextPatches->KextPatches[N].ProcedureName);
+    
+    if (SearchLen == DriverSize) {
+      procLen = DriverSize - procAddr;
+      once = true;
+    } else {
+      procLen = SearchLen;
+    }
+    UINT8 * curs = &Driver[procAddr];
+    UINTN j = 0;
+    while (j < DriverSize) {
+      if (!KernelAndKextPatches->KextPatches[N].StartPattern || //old behavior
+          CompareMemMask((const UINT8*)curs,
+                         (const UINT8 *)KernelAndKextPatches->KextPatches[N].StartPattern,
+                         KernelAndKextPatches->KextPatches[N].StartPatternLen,
+                         (const UINT8 *)KernelAndKextPatches->KextPatches[N].StartMask,
+                         KernelAndKextPatches->KextPatches[N].StartPatternLen)) {
+        DBG_RT(" StartPattern found\n");
+
+        Num = SearchAndReplaceMask(curs,
+                                   procLen,
+                                   (const UINT8*)KernelAndKextPatches->KextPatches[N].Data,
+                                   (const UINT8*)KernelAndKextPatches->KextPatches[N].MaskFind,
+                                   KernelAndKextPatches->KextPatches[N].DataLen,
+                                   (const UINT8*)KernelAndKextPatches->KextPatches[N].Patch,
+                                   (const UINT8*)KernelAndKextPatches->KextPatches[N].MaskReplace,
+                                   -1);
+        if (Num) {
+          curs += SearchLen - 1;
+          j    += SearchLen - 1;
+        }
+      }
+      if (once ||
+          !KernelAndKextPatches->KextPatches[N].StartPattern ||
+          !KernelAndKextPatches->KextPatches[N].StartPatternLen) {
+        break;
+      }
+      j++; curs++;
+    }
   } else {
     // Info plist patch
-    DBG_RT(Entry, "Info.plist data : '");
-    for (Ind = 0; Ind < Entry->KernelAndKextPatches->KextPatches[N].DataLen; Ind++) {
-      DBG_RT(Entry, "%c", Entry->KernelAndKextPatches->KextPatches[N].Data[Ind]);
+    DBG_RT("Info.plist data : '");
+    for (Ind = 0; Ind < KernelAndKextPatches->KextPatches[N].DataLen; Ind++) {
+      DBG_RT("%c", KernelAndKextPatches->KextPatches[N].Data[Ind]);
     }
-    DBG_RT(Entry, "' ->\n");
-    DBG_RT(Entry, "Info.plist patch: '");
-    for (Ind = 0; Ind < Entry->KernelAndKextPatches->KextPatches[N].DataLen; Ind++) {
-      DBG_RT(Entry, "%c", Entry->KernelAndKextPatches->KextPatches[N].Patch[Ind]);
+    DBG_RT("' ->\n");
+    DBG_RT("Info.plist patch: '");
+    for (Ind = 0; Ind < KernelAndKextPatches->KextPatches[N].DataLen; Ind++) {
+      DBG_RT("%c", KernelAndKextPatches->KextPatches[N].Patch[Ind]);
     }
-    DBG_RT(Entry, "' \n");
+    DBG_RT("' \n");
     
     Num = SearchAndReplaceTxt((UINT8*)InfoPlist,
                            InfoPlistSize,
-                           Entry->KernelAndKextPatches->KextPatches[N].Data,
-                           Entry->KernelAndKextPatches->KextPatches[N].DataLen,
-                           Entry->KernelAndKextPatches->KextPatches[N].Patch,
+                           KernelAndKextPatches->KextPatches[N].Data,
+                           KernelAndKextPatches->KextPatches[N].DataLen,
+                           KernelAndKextPatches->KextPatches[N].Patch,
                            -1);
   }
   
-  if (Entry->KernelAndKextPatches->KPDebug) {
+  if (KernelAndKextPatches->KPDebug) {
     if (Num > 0) {
-		DBG_RT(Entry, "==> patched %llu times!\n", Num);
+		DBG_RT("==> patched %llu times!\n", Num);
     } else {
-      DBG_RT(Entry, "==> NOT patched!\n");
+      DBG_RT("==> NOT patched!\n");
     }
     gBS->Stall(2000000);
   }
@@ -1021,109 +1169,105 @@ VOID AnyKextPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 Inf
 // Called from SetFSInjection(), before boot.efi is started,
 // to allow patchers to prepare FSInject to force load needed kexts.
 //
-VOID KextPatcherRegisterKexts(FSINJECTION_PROTOCOL *FSInject, FSI_STRING_LIST *ForceLoadKexts, LOADER_ENTRY *Entry)
+VOID LOADER_ENTRY::KextPatcherRegisterKexts(void *FSInject_v, void *ForceLoadKexts)
 {
-  INTN i;
-  
-  if (Entry->KernelAndKextPatches->KPATIConnectorsController != NULL) {
-    ATIConnectorsPatchRegisterKexts(FSInject, ForceLoadKexts, Entry);
+  FSINJECTION_PROTOCOL *FSInject = (FSINJECTION_PROTOCOL *)FSInject_v;
+  if (KernelAndKextPatches->KPATIConnectorsController != NULL) {
+    ATIConnectorsPatchRegisterKexts(FSInject_v, ForceLoadKexts);
   }
   
-  for (i = 0; i < Entry->KernelAndKextPatches->NrKexts; i++) {
-    FSInject->AddStringToList(ForceLoadKexts,
+  for (INTN i = 0; i < KernelAndKextPatches->NrKexts; i++) {
+    FSInject->AddStringToList((FSI_STRING_LIST*)ForceLoadKexts,
                               PoolPrint(L"\\%a.kext\\Contents\\Info.plist",
-                                        Entry->KernelAndKextPatches->KextPatches[i].Name) );
+                                        KernelAndKextPatches->KextPatches[i].Name) );
   }
-  
 }
 
 //
 // PatchKext is called for every kext from prelinked kernel (kernelcache) or from DevTree (booting with drivers).
 // Add kext detection code here and call kext specific patch function.
 //
-VOID PatchKext(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize, LOADER_ENTRY *Entry)
+VOID LOADER_ENTRY::PatchKext(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize)
 {
-  INT32 i;
-  
-  if (Entry->KernelAndKextPatches->KPATIConnectorsController != NULL) {
+  if (KernelAndKextPatches->KPATIConnectorsController != NULL) {
     //
     // ATIConnectors
     //
     if (!ATIConnectorsPatchInited) {
-      ATIConnectorsPatchInit(Entry);
+      ATIConnectorsPatchInit();
     }
     if (   AsciiStrStr(InfoPlist, ATIKextBundleId[0]) != NULL  // ATI boundle id
         || AsciiStrStr(InfoPlist, ATIKextBundleId[1]) != NULL  // AMD boundle id
         || AsciiStrStr(InfoPlist, "com.apple.kext.ATIFramebuffer") != NULL // SnowLeo
         || AsciiStrStr(InfoPlist, "com.apple.kext.AMDFramebuffer") != NULL //Maverics
         ) {
-      ATIConnectorsPatch(Driver, DriverSize, InfoPlist, InfoPlistSize, Entry);
+      ATIConnectorsPatch(Driver, DriverSize, InfoPlist, InfoPlistSize);
       return;
     }
   }
   
   ExtractKextBundleIdentifier(InfoPlist);
   
-  if (Entry->KernelAndKextPatches->KPAppleIntelCPUPM &&
+  if (KernelAndKextPatches->KPAppleIntelCPUPM &&
       (AsciiStrStr(InfoPlist,
                    "<string>com.apple.driver.AppleIntelCPUPowerManagement</string>") != NULL)) {
     //
     // AppleIntelCPUPM
     //
-    AppleIntelCPUPMPatch(Driver, DriverSize, InfoPlist, InfoPlistSize, Entry);
-  } else if (Entry->KernelAndKextPatches->KPAppleRTC &&
+    AppleIntelCPUPMPatch(Driver, DriverSize, InfoPlist, InfoPlistSize);
+  } else if (KernelAndKextPatches->KPAppleRTC &&
              (AsciiStrStr(InfoPlist, "com.apple.driver.AppleRTC") != NULL)) {
     //
     // AppleRTC
     //
-    AppleRTCPatch(Driver, DriverSize, InfoPlist, InfoPlistSize, Entry);
-  } else if (Entry->KernelAndKextPatches->KPDELLSMBIOS &&
+    AppleRTCPatch(Driver, DriverSize, InfoPlist, InfoPlistSize);
+  } else if (KernelAndKextPatches->KPDELLSMBIOS &&
            (AsciiStrStr(InfoPlist, "com.apple.driver.AppleSMBIOS") != NULL)) {
     //
     // DellSMBIOSPatch
     //
-    DBG_RT(Entry, "Remap SMBIOS Table require, AppleSMBIOS...\n");
-    DellSMBIOSPatch(Driver, DriverSize, InfoPlist, InfoPlistSize, Entry);
-  } else if (Entry->KernelAndKextPatches->KPDELLSMBIOS &&
+    DBG_RT("Remap SMBIOS Table require, AppleSMBIOS...\n");
+    DellSMBIOSPatch(Driver, DriverSize, InfoPlist, InfoPlistSize);
+  } else if (KernelAndKextPatches->KPDELLSMBIOS &&
              (AsciiStrStr(InfoPlist, "com.apple.driver.AppleACPIPlatform") != NULL)) {
     //
     // DellSMBIOS
     //
     // AppleACPIPlatform
     //
-    DellSMBIOSPatch(Driver, DriverSize, InfoPlist, InfoPlistSize, Entry);
+    DellSMBIOSPatch(Driver, DriverSize, InfoPlist, InfoPlistSize);
   } else if (gBDWEIOPCIFixRequire && (AsciiStrStr(InfoPlist, "com.apple.iokit.IOPCIFamily") != NULL)) {
     //
-    // Braodwell-E IOPCIFamily Patch
+    // Broadwell-E IOPCIFamily Patch
     //
-    BDWE_IOPCIPatch(Driver, DriverSize, InfoPlist, InfoPlistSize, Entry);
+    BDWE_IOPCIPatch(Driver, DriverSize, InfoPlist, InfoPlistSize);
   } else if (gSNBEAICPUFixRequire && (AsciiStrStr(InfoPlist, "com.apple.driver.AppleIntelCPUPowerManagement") != NULL)) {
     //
     // SandyBridge-E AppleIntelCPUPowerManagement Patch implemented by syscl
     //
-    SNBE_AICPUPatch(Driver, DriverSize, InfoPlist, InfoPlistSize, Entry);
+    SNBE_AICPUPatch(Driver, DriverSize, InfoPlist, InfoPlistSize);
+  } else if (KernelAndKextPatches->EightApple &&
+          /*   (AsciiStrStr(InfoPlist, "com.apple.iokit.IOGraphicsFamily") != NULL) && */
+             (AsciiStrStr(InfoPlist, "I/O Kit Graphics Family") != NULL)) {
+    //
+    // Patch against 8 apple glitch
+    //
+    DBG_RT("Patch 8 apple required, IOGraphicsFamily...\n");
+    EightApplePatch(Driver, DriverSize);
+    Stall(10000000);
   }
-  //else {
-    //
-    //others
-    //
-    for (i = 0; i < Entry->KernelAndKextPatches->NrKexts; i++) {
-      CHAR8 *Name = Entry->KernelAndKextPatches->KextPatches[i].Name;
+  //com.apple.iokit.IOGraphicsFamily
+  
+    for (INT32 i = 0; i < KernelAndKextPatches->NrKexts; i++) {
+      CHAR8 *Name = KernelAndKextPatches->KextPatches[i].Name;
       BOOLEAN   isBundle = (AsciiStrStr(Name, ".") != NULL);
-      if ((Entry->KernelAndKextPatches->KextPatches[i].DataLen > 0) &&
+      if ((KernelAndKextPatches->KextPatches[i].DataLen > 0) &&
           isBundle?(AsciiStrCmp(gKextBundleIdentifier, Name) == 0):(AsciiStrStr(gKextBundleIdentifier, Name) != NULL)) {
-      //    (AsciiStrStr(InfoPlist, Entry->KernelAndKextPatches->KextPatches[i].Name) != NULL)) {
-		  DBG_RT(Entry, "\n\nPatch kext: %s\n", Entry->KernelAndKextPatches->KextPatches[i].Name);
-        AnyKextPatch(Driver, DriverSize, InfoPlist, InfoPlistSize, i, Entry);
+      //    (AsciiStrStr(InfoPlist, KernelAndKextPatches->KextPatches[i].Name) != NULL)) {
+        DBG_RT("\n\nPatch kext: %s\n", KernelAndKextPatches->KextPatches[i].Name);
+        AnyKextPatch(Driver, DriverSize, InfoPlist, InfoPlistSize, i);
       }
     }
-//  }
-  
-  //
-  // Check for FakeSMC (InjectKexts if no FakeSMC)
-  //
-  // apianti - Why recheck individual info plist if we checked the whole prelinked
-  // CheckForFakeSMC(InfoPlist, Entry);
 }
 
 //
@@ -1281,7 +1425,7 @@ UINT64 GetPlistHexValue(CONST CHAR8 *Plist, CONST CHAR8 *Key, CONST CHAR8 *Whole
 //       ...
 //     </dict>
 //       ...
-VOID PatchPrelinkedKexts(LOADER_ENTRY *Entry)
+VOID LOADER_ENTRY::PatchPrelinkedKexts()
 {
   CHAR8     *WholePlist;
   CHAR8     *DictPtr;
@@ -1310,7 +1454,7 @@ VOID PatchPrelinkedKexts(LOADER_ENTRY *Entry)
   //Slice
   // I see no reason to disable kext injection if FakeSMC found in cache
   //since rev4240 we have manual kext inject disable
-  CheckForFakeSMC(WholePlist, Entry);
+  CheckForFakeSMC(WholePlist);
   
   DictPtr = WholePlist;
   while ((DictPtr = AsciiStrStr(DictPtr, "dict>")) != NULL) {
@@ -1357,8 +1501,7 @@ VOID PatchPrelinkedKexts(LOADER_ENTRY *Entry)
                   (UINT8*)(UINTN)KextAddr,
                   KextSize,
                   InfoPlistStart,
-                  (UINT32)(InfoPlistEnd - InfoPlistStart),
-                  Entry
+                  (UINT32)(InfoPlistEnd - InfoPlistStart)
                   );
         
         // return saved char
@@ -1375,7 +1518,7 @@ VOID PatchPrelinkedKexts(LOADER_ENTRY *Entry)
 // Iterates over kexts loaded by booter
 // and calls PatchKext() for each.
 //
-VOID PatchLoadedKexts(LOADER_ENTRY *Entry)
+VOID LOADER_ENTRY::PatchLoadedKexts()
 {
   DTEntry             MMEntry;
   _BooterKextFileInfo *KextFileInfo;
@@ -1388,7 +1531,7 @@ VOID PatchLoadedKexts(LOADER_ENTRY *Entry)
   //UINTN               DbgCount = 0;
   
   
-  DBG("\nPatchLoadedKexts ... dtRoot = %p\n", dtRoot);
+  DBG("\nPatchLoadedKexts ... dtRoot = %llx\n", (UINTN)dtRoot);
   
   if (!dtRoot || !dtLength) {
     return;
@@ -1417,8 +1560,7 @@ VOID PatchLoadedKexts(LOADER_ENTRY *Entry)
                     (UINT8*)(UINTN)KextFileInfo->executablePhysAddr,
                     KextFileInfo->executableLength,
                     InfoPlist,
-                    KextFileInfo->infoDictLength,
-                    Entry
+                    KextFileInfo->infoDictLength
                     );
 
           InfoPlist[KextFileInfo->infoDictLength] = SavedValue;
@@ -1438,20 +1580,16 @@ VOID PatchLoadedKexts(LOADER_ENTRY *Entry)
 // Will iterate through kext in prelinked kernel (kernelcache)
 // or DevTree (drivers boot) and do patches.
 //
-VOID KextPatcherStart(LOADER_ENTRY *Entry)
+VOID LOADER_ENTRY::KextPatcherStart()
 {
   if (isKernelcache) {
-    DBG_RT(Entry, "Patching kernelcache ...\n");
-    if (Entry->KernelAndKextPatches->KPDebug) {
-      gBS->Stall(2000000);
-    }
-    PatchPrelinkedKexts(Entry);
+    DBG_RT("Patching kernelcache ...\n");
+      Stall(2000000);
+    PatchPrelinkedKexts();
   } else {
-    DBG_RT(Entry, "Patching loaded kexts ...\n");
-    if (Entry->KernelAndKextPatches->KPDebug) {
-      gBS->Stall(2000000);
-    }
-    PatchLoadedKexts(Entry);
+    DBG_RT("Patching loaded kexts ...\n");
+      Stall(2000000);
+    PatchLoadedKexts();
   }
 }
 

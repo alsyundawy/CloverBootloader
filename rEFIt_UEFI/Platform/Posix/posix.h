@@ -16,6 +16,7 @@
 #include "stdlib.h"
 #include "string.h"
 #include "wchar.h"
+#include "abort.h"
 
 //
 // Macros that directly map functions to BaseLib, BaseMemoryLib, and DebugLib functions
@@ -27,10 +28,10 @@
 //#define memmove(dest,source,count)        CopyMem(dest,source,(UINTN)(count))
 //#define strcmp                            AsciiStrCmp
 //#define strncmp(string1,string2,count)    (int)(AsciiStrnCmp(string1,string2,(UINTN)(count)))
-#define strcpy(strDest,strSource)         AsciiStrCpyS(strDest,AsciiStrLen(strDest)+1,strSource)
-#define strncpy(strDest,strSource,count)  AsciiStrnCpyS(strDest,(UINTN)count+1,strSource,(UINTN)count)
+//#define strcpy(strDest,strSource)         AsciiStrCpyS(strDest,AsciiStrLen(strDest)+1,strSource)
+//#define strncpy(strDest,strSource,count)  AsciiStrnCpyS(strDest,(UINTN)count+1,strSource,(UINTN)count)
 //#define strlen(str)                       (size_t)(AsciiStrLen(str))
-#define strcat(strDest,strSource)         AsciiStrCatS(strDest,AsciiStrLen(strDest)+1,strSource)
+//#define strcat(strDest,strSource)         AsciiStrCatS(strDest,AsciiStrLen(strDest)+1,strSource)
 #define strchr(str,ch)                    ScanMem8((VOID *)(str),AsciiStrSize(str),(UINT8)ch)
 #define strstr(a,b)                       AsciiStrStr(a,b)
 
